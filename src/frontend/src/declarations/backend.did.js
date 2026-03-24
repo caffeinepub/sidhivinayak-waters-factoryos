@@ -8,10 +8,402 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const idlService = IDL.Service({});
+export const CustomerType = IDL.Variant({
+  'retail' : IDL.Null,
+  'hotel' : IDL.Null,
+  'wholesale' : IDL.Null,
+});
+export const Customer = IDL.Record({
+  'customerType' : CustomerType,
+  'name' : IDL.Text,
+  'email' : IDL.Text,
+  'address' : IDL.Text,
+  'phone' : IDL.Text,
+});
+export const DeliveryStatus = IDL.Variant({
+  'pending' : IDL.Null,
+  'inTransit' : IDL.Null,
+  'delivered' : IDL.Null,
+});
+export const ProductType = IDL.Variant({
+  'bottle200ml' : IDL.Null,
+  'bottle1L' : IDL.Null,
+  'jar20L' : IDL.Null,
+  'bottle500ml' : IDL.Null,
+});
+export const Delivery = IDL.Record({
+  'id' : IDL.Nat,
+  'customerName' : IDL.Text,
+  'status' : DeliveryStatus,
+  'paymentMethod' : IDL.Text,
+  'date' : IDL.Int,
+  'quantity' : IDL.Nat,
+  'customerId' : IDL.Nat,
+  'truckNumber' : IDL.Text,
+  'amount' : IDL.Float64,
+  'driverName' : IDL.Text,
+  'remarks' : IDL.Text,
+  'product' : ProductType,
+});
+export const InventoryItem = IDL.Record({
+  'id' : IDL.Nat,
+  'supplier' : IDL.Text,
+  'name' : IDL.Text,
+  'unit' : IDL.Text,
+  'description' : IDL.Text,
+  'minStock' : IDL.Nat,
+  'quantity' : IDL.Nat,
+});
+export const KhataEntryType = IDL.Variant({
+  'credit' : IDL.Null,
+  'debit' : IDL.Null,
+});
+export const KhataEntry = IDL.Record({
+  'id' : IDL.Nat,
+  'entryType' : KhataEntryType,
+  'shopId' : IDL.Nat,
+  'date' : IDL.Int,
+  'description' : IDL.Text,
+  'shopName' : IDL.Text,
+  'amount' : IDL.Float64,
+});
+export const BatchStatus = IDL.Variant({
+  'scheduled' : IDL.Null,
+  'completed' : IDL.Null,
+  'inProgress' : IDL.Null,
+});
+export const Shift = IDL.Variant({
+  'morning' : IDL.Null,
+  'night' : IDL.Null,
+  'afternoon' : IDL.Null,
+});
+export const ProductBatch = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : BatchStatus,
+  'date' : IDL.Int,
+  'shift' : Shift,
+  'batchNumber' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'product' : ProductType,
+});
+export const Shop = IDL.Record({
+  'id' : IDL.Nat,
+  'name' : IDL.Text,
+  'contactPerson' : IDL.Text,
+  'address' : IDL.Text,
+  'shopType' : CustomerType,
+  'phone' : IDL.Text,
+  'location' : IDL.Text,
+});
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'user' : IDL.Null,
+  'guest' : IDL.Null,
+});
+export const InvoiceStatus = IDL.Variant({
+  'paid' : IDL.Null,
+  'unpaid' : IDL.Null,
+  'partial' : IDL.Null,
+});
+export const Invoice = IDL.Record({
+  'id' : IDL.Nat,
+  'customerName' : IDL.Text,
+  'status' : InvoiceStatus,
+  'date' : IDL.Int,
+  'series' : IDL.Text,
+  'customerId' : IDL.Nat,
+  'paymentTerms' : IDL.Text,
+  'items' : IDL.Text,
+  'amount' : IDL.Float64,
+});
+export const ActivityLog = IDL.Record({
+  'action' : IDL.Text,
+  'user' : IDL.Principal,
+  'timestamp' : IDL.Int,
+  'details' : IDL.Text,
+});
+export const UserProfile = IDL.Record({
+  'name' : IDL.Text,
+  'role' : IDL.Text,
+  'email' : IDL.Text,
+});
+
+export const idlService = IDL.Service({
+  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addCustomer' : IDL.Func([Customer], [IDL.Nat], []),
+  'addDelivery' : IDL.Func([Delivery], [IDL.Nat], []),
+  'addInventoryItem' : IDL.Func([InventoryItem], [IDL.Nat], []),
+  'addKhataEntry' : IDL.Func([KhataEntry], [IDL.Nat], []),
+  'addProductionBatch' : IDL.Func([ProductBatch], [IDL.Nat], []),
+  'addShop' : IDL.Func([Shop], [IDL.Nat], []),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'createInvoice' : IDL.Func([Invoice], [IDL.Nat], []),
+  'deleteBatch' : IDL.Func([IDL.Nat], [], []),
+  'deleteCustomer' : IDL.Func([IDL.Nat], [], []),
+  'deleteDelivery' : IDL.Func([IDL.Nat], [], []),
+  'deleteInventoryItem' : IDL.Func([IDL.Nat], [], []),
+  'deleteInvoice' : IDL.Func([IDL.Nat], [], []),
+  'deleteKhataEntry' : IDL.Func([IDL.Nat], [], []),
+  'deleteShop' : IDL.Func([IDL.Nat], [], []),
+  'getAllActivityLogs' : IDL.Func([], [IDL.Vec(ActivityLog)], ['query']),
+  'getAllBatches' : IDL.Func([], [IDL.Vec(ProductBatch)], ['query']),
+  'getAllCustomers' : IDL.Func([], [IDL.Vec(Customer)], ['query']),
+  'getAllDeliveries' : IDL.Func([], [IDL.Vec(Delivery)], ['query']),
+  'getAllInventoryItems' : IDL.Func([], [IDL.Vec(InventoryItem)], ['query']),
+  'getAllInvoices' : IDL.Func([], [IDL.Vec(Invoice)], ['query']),
+  'getAllKhataEntries' : IDL.Func([], [IDL.Vec(KhataEntry)], ['query']),
+  'getAllShops' : IDL.Func([], [IDL.Vec(Shop)], ['query']),
+  'getBatch' : IDL.Func([IDL.Nat], [IDL.Opt(ProductBatch)], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCustomer' : IDL.Func([IDL.Nat], [IDL.Opt(Customer)], ['query']),
+  'getDeliveriesByCustomer' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(Delivery)],
+      ['query'],
+    ),
+  'getDeliveriesByDateRange' : IDL.Func(
+      [IDL.Int, IDL.Int],
+      [IDL.Vec(Delivery)],
+      ['query'],
+    ),
+  'getDelivery' : IDL.Func([IDL.Nat], [IDL.Opt(Delivery)], ['query']),
+  'getInventoryItem' : IDL.Func([IDL.Nat], [IDL.Opt(InventoryItem)], ['query']),
+  'getInvoice' : IDL.Func([IDL.Nat], [IDL.Opt(Invoice)], ['query']),
+  'getInvoicesByCustomer' : IDL.Func([IDL.Nat], [IDL.Vec(Invoice)], ['query']),
+  'getKhataEntriesByShop' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(KhataEntry)],
+      ['query'],
+    ),
+  'getKhataEntry' : IDL.Func([IDL.Nat], [IDL.Opt(KhataEntry)], ['query']),
+  'getLowStockItems' : IDL.Func([], [IDL.Vec(InventoryItem)], ['query']),
+  'getPendingDeliveries' : IDL.Func([], [IDL.Vec(Delivery)], ['query']),
+  'getProductionByDateRange' : IDL.Func(
+      [IDL.Int, IDL.Int],
+      [IDL.Vec(ProductBatch)],
+      ['query'],
+    ),
+  'getShop' : IDL.Func([IDL.Nat], [IDL.Opt(Shop)], ['query']),
+  'getShopBalance' : IDL.Func([IDL.Nat], [IDL.Float64], ['query']),
+  'getUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
+  'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'updateBatch' : IDL.Func([IDL.Nat, ProductBatch], [], []),
+  'updateCustomer' : IDL.Func([IDL.Nat, Customer], [], []),
+  'updateDelivery' : IDL.Func([IDL.Nat, Delivery], [], []),
+  'updateInventoryItem' : IDL.Func([IDL.Nat, InventoryItem], [], []),
+  'updateInvoice' : IDL.Func([IDL.Nat, Invoice], [], []),
+  'updateShop' : IDL.Func([IDL.Nat, Shop], [], []),
+});
 
 export const idlInitArgs = [];
 
-export const idlFactory = ({ IDL }) => { return IDL.Service({}); };
+export const idlFactory = ({ IDL }) => {
+  const CustomerType = IDL.Variant({
+    'retail' : IDL.Null,
+    'hotel' : IDL.Null,
+    'wholesale' : IDL.Null,
+  });
+  const Customer = IDL.Record({
+    'customerType' : CustomerType,
+    'name' : IDL.Text,
+    'email' : IDL.Text,
+    'address' : IDL.Text,
+    'phone' : IDL.Text,
+  });
+  const DeliveryStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'inTransit' : IDL.Null,
+    'delivered' : IDL.Null,
+  });
+  const ProductType = IDL.Variant({
+    'bottle200ml' : IDL.Null,
+    'bottle1L' : IDL.Null,
+    'jar20L' : IDL.Null,
+    'bottle500ml' : IDL.Null,
+  });
+  const Delivery = IDL.Record({
+    'id' : IDL.Nat,
+    'customerName' : IDL.Text,
+    'status' : DeliveryStatus,
+    'paymentMethod' : IDL.Text,
+    'date' : IDL.Int,
+    'quantity' : IDL.Nat,
+    'customerId' : IDL.Nat,
+    'truckNumber' : IDL.Text,
+    'amount' : IDL.Float64,
+    'driverName' : IDL.Text,
+    'remarks' : IDL.Text,
+    'product' : ProductType,
+  });
+  const InventoryItem = IDL.Record({
+    'id' : IDL.Nat,
+    'supplier' : IDL.Text,
+    'name' : IDL.Text,
+    'unit' : IDL.Text,
+    'description' : IDL.Text,
+    'minStock' : IDL.Nat,
+    'quantity' : IDL.Nat,
+  });
+  const KhataEntryType = IDL.Variant({
+    'credit' : IDL.Null,
+    'debit' : IDL.Null,
+  });
+  const KhataEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'entryType' : KhataEntryType,
+    'shopId' : IDL.Nat,
+    'date' : IDL.Int,
+    'description' : IDL.Text,
+    'shopName' : IDL.Text,
+    'amount' : IDL.Float64,
+  });
+  const BatchStatus = IDL.Variant({
+    'scheduled' : IDL.Null,
+    'completed' : IDL.Null,
+    'inProgress' : IDL.Null,
+  });
+  const Shift = IDL.Variant({
+    'morning' : IDL.Null,
+    'night' : IDL.Null,
+    'afternoon' : IDL.Null,
+  });
+  const ProductBatch = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : BatchStatus,
+    'date' : IDL.Int,
+    'shift' : Shift,
+    'batchNumber' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'product' : ProductType,
+  });
+  const Shop = IDL.Record({
+    'id' : IDL.Nat,
+    'name' : IDL.Text,
+    'contactPerson' : IDL.Text,
+    'address' : IDL.Text,
+    'shopType' : CustomerType,
+    'phone' : IDL.Text,
+    'location' : IDL.Text,
+  });
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'user' : IDL.Null,
+    'guest' : IDL.Null,
+  });
+  const InvoiceStatus = IDL.Variant({
+    'paid' : IDL.Null,
+    'unpaid' : IDL.Null,
+    'partial' : IDL.Null,
+  });
+  const Invoice = IDL.Record({
+    'id' : IDL.Nat,
+    'customerName' : IDL.Text,
+    'status' : InvoiceStatus,
+    'date' : IDL.Int,
+    'series' : IDL.Text,
+    'customerId' : IDL.Nat,
+    'paymentTerms' : IDL.Text,
+    'items' : IDL.Text,
+    'amount' : IDL.Float64,
+  });
+  const ActivityLog = IDL.Record({
+    'action' : IDL.Text,
+    'user' : IDL.Principal,
+    'timestamp' : IDL.Int,
+    'details' : IDL.Text,
+  });
+  const UserProfile = IDL.Record({
+    'name' : IDL.Text,
+    'role' : IDL.Text,
+    'email' : IDL.Text,
+  });
+  
+  return IDL.Service({
+    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addCustomer' : IDL.Func([Customer], [IDL.Nat], []),
+    'addDelivery' : IDL.Func([Delivery], [IDL.Nat], []),
+    'addInventoryItem' : IDL.Func([InventoryItem], [IDL.Nat], []),
+    'addKhataEntry' : IDL.Func([KhataEntry], [IDL.Nat], []),
+    'addProductionBatch' : IDL.Func([ProductBatch], [IDL.Nat], []),
+    'addShop' : IDL.Func([Shop], [IDL.Nat], []),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'createInvoice' : IDL.Func([Invoice], [IDL.Nat], []),
+    'deleteBatch' : IDL.Func([IDL.Nat], [], []),
+    'deleteCustomer' : IDL.Func([IDL.Nat], [], []),
+    'deleteDelivery' : IDL.Func([IDL.Nat], [], []),
+    'deleteInventoryItem' : IDL.Func([IDL.Nat], [], []),
+    'deleteInvoice' : IDL.Func([IDL.Nat], [], []),
+    'deleteKhataEntry' : IDL.Func([IDL.Nat], [], []),
+    'deleteShop' : IDL.Func([IDL.Nat], [], []),
+    'getAllActivityLogs' : IDL.Func([], [IDL.Vec(ActivityLog)], ['query']),
+    'getAllBatches' : IDL.Func([], [IDL.Vec(ProductBatch)], ['query']),
+    'getAllCustomers' : IDL.Func([], [IDL.Vec(Customer)], ['query']),
+    'getAllDeliveries' : IDL.Func([], [IDL.Vec(Delivery)], ['query']),
+    'getAllInventoryItems' : IDL.Func([], [IDL.Vec(InventoryItem)], ['query']),
+    'getAllInvoices' : IDL.Func([], [IDL.Vec(Invoice)], ['query']),
+    'getAllKhataEntries' : IDL.Func([], [IDL.Vec(KhataEntry)], ['query']),
+    'getAllShops' : IDL.Func([], [IDL.Vec(Shop)], ['query']),
+    'getBatch' : IDL.Func([IDL.Nat], [IDL.Opt(ProductBatch)], ['query']),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCustomer' : IDL.Func([IDL.Nat], [IDL.Opt(Customer)], ['query']),
+    'getDeliveriesByCustomer' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(Delivery)],
+        ['query'],
+      ),
+    'getDeliveriesByDateRange' : IDL.Func(
+        [IDL.Int, IDL.Int],
+        [IDL.Vec(Delivery)],
+        ['query'],
+      ),
+    'getDelivery' : IDL.Func([IDL.Nat], [IDL.Opt(Delivery)], ['query']),
+    'getInventoryItem' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(InventoryItem)],
+        ['query'],
+      ),
+    'getInvoice' : IDL.Func([IDL.Nat], [IDL.Opt(Invoice)], ['query']),
+    'getInvoicesByCustomer' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(Invoice)],
+        ['query'],
+      ),
+    'getKhataEntriesByShop' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(KhataEntry)],
+        ['query'],
+      ),
+    'getKhataEntry' : IDL.Func([IDL.Nat], [IDL.Opt(KhataEntry)], ['query']),
+    'getLowStockItems' : IDL.Func([], [IDL.Vec(InventoryItem)], ['query']),
+    'getPendingDeliveries' : IDL.Func([], [IDL.Vec(Delivery)], ['query']),
+    'getProductionByDateRange' : IDL.Func(
+        [IDL.Int, IDL.Int],
+        [IDL.Vec(ProductBatch)],
+        ['query'],
+      ),
+    'getShop' : IDL.Func([IDL.Nat], [IDL.Opt(Shop)], ['query']),
+    'getShopBalance' : IDL.Func([IDL.Nat], [IDL.Float64], ['query']),
+    'getUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
+    'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'updateBatch' : IDL.Func([IDL.Nat, ProductBatch], [], []),
+    'updateCustomer' : IDL.Func([IDL.Nat, Customer], [], []),
+    'updateDelivery' : IDL.Func([IDL.Nat, Delivery], [], []),
+    'updateInventoryItem' : IDL.Func([IDL.Nat, InventoryItem], [], []),
+    'updateInvoice' : IDL.Func([IDL.Nat, Invoice], [], []),
+    'updateShop' : IDL.Func([IDL.Nat, Shop], [], []),
+  });
+};
 
 export const init = ({ IDL }) => { return []; };

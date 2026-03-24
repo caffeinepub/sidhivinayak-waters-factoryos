@@ -3,25 +3,35 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import Sidebar, { type Page } from "./components/Sidebar";
+import AIPanel from "./pages/AIPanel";
 import Billing from "./pages/Billing";
+import Customers from "./pages/Customers";
 import Dashboard from "./pages/Dashboard";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
+import Khata from "./pages/Khata";
 import Production from "./pages/Production";
+import QRScanner from "./pages/QRScanner";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Shops from "./pages/Shops";
 
 const queryClient = new QueryClient();
 
 function pageTitle(page: Page): string {
   const titles: Record<Page, string> = {
     dashboard: "Dashboard",
+    customers: "Customers",
     production: "Production",
     inventory: "Inventory",
     delivery: "Delivery",
     billing: "Billing",
     reports: "Reports",
     settings: "Settings",
+    scanner: "QR Scanner",
+    shops: "Shops",
+    khata: "Khata",
+    "ai-panel": "AI Panel",
   };
   return titles[page];
 }
@@ -39,6 +49,8 @@ function AppContent() {
     switch (activePage) {
       case "dashboard":
         return <Dashboard />;
+      case "customers":
+        return <Customers />;
       case "production":
         return <Production />;
       case "inventory":
@@ -51,6 +63,14 @@ function AppContent() {
         return <Reports />;
       case "settings":
         return <Settings />;
+      case "scanner":
+        return <QRScanner />;
+      case "shops":
+        return <Shops />;
+      case "khata":
+        return <Khata />;
+      case "ai-panel":
+        return <AIPanel />;
     }
   };
 
@@ -68,9 +88,7 @@ function AppContent() {
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen((o) => !o)}
       />
-
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Mobile top bar */}
         <div
           className="lg:hidden flex items-center gap-3 px-4 py-3 border-b"
           style={{
@@ -93,9 +111,7 @@ function AppContent() {
             Sidhivinayak Waters
           </span>
         </div>
-
         <main className="flex-1 p-5 lg:p-6 overflow-auto">{renderPage()}</main>
-
         <footer
           className="px-6 py-3 border-t flex items-center justify-center"
           style={{ borderColor: "oklch(0.21 0.02 240)" }}
@@ -114,7 +130,6 @@ function AppContent() {
           </p>
         </footer>
       </div>
-
       <Toaster />
     </div>
   );

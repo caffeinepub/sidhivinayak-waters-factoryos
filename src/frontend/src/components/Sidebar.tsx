@@ -1,40 +1,91 @@
 import {
   BarChart3,
+  BookOpen,
+  Brain,
   ChevronRight,
-  Droplets,
   Factory,
   LayoutDashboard,
   Package,
   Receipt,
+  ScanLine,
   Settings,
+  Store,
   Truck,
+  Users,
   X,
 } from "lucide-react";
 
 export type Page =
   | "dashboard"
+  | "customers"
   | "production"
   | "inventory"
   | "delivery"
   | "billing"
   | "reports"
-  | "settings";
+  | "settings"
+  | "scanner"
+  | "shops"
+  | "khata"
+  | "ai-panel";
 
 interface NavItem {
   id: Page;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   hasChildren?: boolean;
+  section?: string;
 }
 
 const navItems: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "production", label: "Production", icon: Factory },
-  { id: "inventory", label: "Inventory", icon: Package, hasChildren: true },
-  { id: "delivery", label: "Delivery", icon: Truck, hasChildren: true },
-  { id: "billing", label: "Billing", icon: Receipt },
-  { id: "reports", label: "Reports", icon: BarChart3, hasChildren: true },
-  { id: "settings", label: "Settings", icon: Settings },
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    section: "main",
+  },
+  { id: "scanner", label: "QR Scanner", icon: ScanLine, section: "main" },
+  { id: "customers", label: "Customers", icon: Users, section: "ops" },
+  { id: "production", label: "Production", icon: Factory, section: "ops" },
+  {
+    id: "inventory",
+    label: "Inventory",
+    icon: Package,
+    hasChildren: true,
+    section: "ops",
+  },
+  {
+    id: "delivery",
+    label: "Delivery",
+    icon: Truck,
+    hasChildren: true,
+    section: "ops",
+  },
+  { id: "shops", label: "Shops", icon: Store, section: "sales" },
+  { id: "billing", label: "Billing", icon: Receipt, section: "sales" },
+  { id: "khata", label: "Khata", icon: BookOpen, section: "sales" },
+  {
+    id: "reports",
+    label: "Reports",
+    icon: BarChart3,
+    hasChildren: true,
+    section: "intel",
+  },
+  {
+    id: "ai-panel",
+    label: "AI Panel",
+    icon: Brain,
+    hasChildren: true,
+    section: "intel",
+  },
+  { id: "settings", label: "Settings", icon: Settings, section: "intel" },
+];
+
+const sections: { key: string; label: string }[] = [
+  { key: "main", label: "" },
+  { key: "ops", label: "Operations" },
+  { key: "sales", label: "Sales" },
+  { key: "intel", label: "Intelligence" },
 ];
 
 interface SidebarProps {
@@ -52,7 +103,6 @@ export default function Sidebar({
 }: SidebarProps) {
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div
           role="button"
@@ -65,8 +115,6 @@ export default function Sidebar({
           }}
         />
       )}
-
-      {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-full z-30 w-64 flex flex-col transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
@@ -76,20 +124,15 @@ export default function Sidebar({
           borderRight: "1px solid oklch(0.21 0.02 240)",
         }}
       >
-        {/* Brand */}
         <div
-          className="flex items-center gap-3 px-5 py-6 border-b"
+          className="flex items-center gap-3 px-5 py-5 border-b"
           style={{ borderColor: "oklch(0.21 0.02 240)" }}
         >
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 neon-glow"
-            style={{
-              background: "oklch(0.75 0.13 188 / 0.12)",
-              border: "1px solid oklch(0.75 0.13 188 / 0.4)",
-            }}
-          >
-            <Droplets className="w-5 h-5 text-neon" />
-          </div>
+          <img
+            src="/assets/generated/sidhivinayak-logo-transparent.dim_400x400.png"
+            className="w-10 h-10 object-contain flex-shrink-0"
+            alt="Sidhivinayak Waters Logo"
+          />
           <div>
             <p className="text-sm font-bold text-neon leading-tight">
               Sidhivinayak
@@ -108,56 +151,66 @@ export default function Sidebar({
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Nav */}
-        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = activePage === item.id;
-            const Icon = item.icon;
+        <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto">
+          {sections.map((section) => {
+            const items = navItems.filter((i) => i.section === section.key);
             return (
-              <button
-                type="button"
-                key={item.id}
-                data-ocid={`nav.${item.id}.link`}
-                onClick={() => onNavigate(item.id)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 group"
-                style={
-                  isActive
-                    ? {
-                        background: "oklch(0.75 0.13 188 / 0.12)",
-                        border: "1px solid oklch(0.75 0.13 188 / 0.3)",
-                        boxShadow: "0 0 12px oklch(0.75 0.13 188 / 0.15)",
-                      }
-                    : { border: "1px solid transparent" }
-                }
-              >
-                <Icon
-                  className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                    isActive
-                      ? "text-neon"
-                      : "text-tertiary group-hover:text-neon-bright"
-                  }`}
-                />
-                <span
-                  className={`text-sm flex-1 transition-colors ${
-                    isActive
-                      ? "text-neon font-semibold"
-                      : "text-muted-custom font-medium group-hover:text-foreground"
-                  }`}
-                >
-                  {item.label}
-                </span>
-                {item.hasChildren && (
-                  <ChevronRight
-                    className={`w-3 h-3 ${isActive ? "text-neon" : "text-tertiary"}`}
-                  />
+              <div key={section.key}>
+                {section.label && (
+                  <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest px-3 pt-4 pb-1.5">
+                    {section.label}
+                  </p>
                 )}
-              </button>
+                {items.map((item) => {
+                  const isActive = activePage === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      type="button"
+                      key={item.id}
+                      data-ocid={`nav.${item.id}.link`}
+                      onClick={() => onNavigate(item.id)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 group"
+                      style={
+                        isActive
+                          ? {
+                              background: "oklch(0.75 0.13 188 / 0.12)",
+                              border: "1px solid oklch(0.75 0.13 188 / 0.3)",
+                              boxShadow: "0 0 12px oklch(0.75 0.13 188 / 0.15)",
+                            }
+                          : { border: "1px solid transparent" }
+                      }
+                    >
+                      <Icon
+                        className={`w-4 h-4 flex-shrink-0 transition-colors ${
+                          isActive
+                            ? "text-neon"
+                            : "text-tertiary group-hover:text-neon-bright"
+                        }`}
+                      />
+                      <span
+                        className={`text-sm flex-1 transition-colors ${
+                          isActive
+                            ? "text-neon font-semibold"
+                            : "text-muted-custom font-medium group-hover:text-foreground"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                      {item.hasChildren && (
+                        <ChevronRight
+                          className={`w-3 h-3 ${
+                            isActive ? "text-neon" : "text-tertiary"
+                          }`}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
-
-        {/* Footer */}
         <div
           className="px-4 py-4 border-t"
           style={{ borderColor: "oklch(0.21 0.02 240)" }}

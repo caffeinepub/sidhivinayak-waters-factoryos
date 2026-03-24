@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,59 +8,74 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Package, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { InventoryItem } from "../backend";
+import type { Customer, CustomerType } from "../backend";
 import { useActor } from "../hooks/useActor";
 
-type ItemWithId = InventoryItem & { id: bigint };
+type CustomerWithId = Customer & { id: bigint };
 
-const blankForm = () => ({
+const blankForm = (): Customer => ({
   name: "",
-  unit: "",
-  quantity: "",
-  minStock: "",
-  supplier: "",
-  description: "",
+  phone: "",
+  email: "",
+  address: "",
+  customerType: "retail" as CustomerType,
 });
 
-export default function Inventory() {
+const typeColors: Record<string, { bg: string; text: string }> = {
+  retail: { bg: "oklch(0.55 0.2 260 / 0.12)", text: "oklch(0.65 0.18 250)" },
+  wholesale: {
+    bg: "oklch(0.75 0.13 188 / 0.12)",
+    text: "oklch(0.75 0.13 188)",
+  },
+  hotel: { bg: "oklch(0.73 0.16 65 / 0.12)", text: "oklch(0.73 0.16 65)" },
+};
+
+export default function Customers() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<bigint | null>(null);
-  const [form, setForm] = useState(blankForm());
+  const [form, setForm] = useState<Customer>(blankForm());
   const [saving, setSaving] = useState(false);
 
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ["inventory"],
+  const { data: customers = [], isLoading } = useQuery({
+    queryKey: ["customers"],
     queryFn: async () => {
-      const list = await actor!.getAllInventoryItems();
-      return list as unknown as ItemWithId[];
+      const list = await actor!.getAllCustomers();
+      return list as unknown as CustomerWithId[];
     },
     enabled: !!actor,
   });
 
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    queryClient.invalidateQueries({ queryKey: ["customers"] });
 
   const openAdd = () => {
     setEditId(null);
     setForm(blankForm());
     setOpen(true);
   };
-  const openEdit = (item: ItemWithId) => {
-    setEditId(item.id);
+
+  const openEdit = (c: CustomerWithId) => {
+    setEditId(c.id);
     setForm({
-      name: item.name,
-      unit: item.unit,
-      quantity: String(Number(item.quantity)),
-      minStock: String(Number(item.minStock)),
-      supplier: item.supplier,
-      description: item.description,
+      name: c.name,
+      phone: c.phone,
+      email: c.email,
+      address: c.address,
+      customerType: c.customerType,
     });
     setOpen(true);
   };
@@ -69,34 +85,19 @@ export default function Inventory() {
       toast.error("Name is required");
       return;
     }
-    const qty = Number.parseInt(form.quantity, 10);
-    const min = Number.parseInt(form.minStock, 10);
-    if (Number.isNaN(qty) || Number.isNaN(min)) {
-      toast.error("Enter valid quantity and min stock numbers");
-      return;
-    }
     setSaving(true);
     try {
-      const item: InventoryItem = {
-        id: BigInt(0),
-        name: form.name,
-        unit: form.unit,
-        quantity: BigInt(qty),
-        minStock: BigInt(min),
-        supplier: form.supplier,
-        description: form.description,
-      };
       if (editId !== null) {
-        await actor.updateInventoryItem(editId, { ...item, id: editId });
-        toast.success("Item updated");
+        await actor.updateCustomer(editId, form);
+        toast.success("Customer updated");
       } else {
-        await actor.addInventoryItem(item);
-        toast.success("Item added");
+        await actor.addCustomer(form);
+        toast.success("Customer added");
       }
       refresh();
       setOpen(false);
     } catch (_e) {
-      toast.error("Failed to save");
+      toast.error("Failed to save customer");
     } finally {
       setSaving(false);
     }
@@ -105,63 +106,58 @@ export default function Inventory() {
   const handleDelete = async (id: bigint) => {
     if (!actor) return;
     try {
-      await actor.deleteInventoryItem(id);
-      toast.success("Item deleted");
+      await actor.deleteCustomer(id);
+      toast.success("Customer deleted");
       refresh();
-    } catch {
+    } catch (_e) {
       toast.error("Failed to delete");
     }
   };
-
-  const lowStock = items.filter(
-    (i) => Number(i.quantity) <= Number(i.minStock),
-  );
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Inventory</h1>
+          <h1 className="text-2xl font-bold text-foreground">Customers</h1>
           <p className="text-xs text-muted-custom mt-0.5">
-            Stock levels and thresholds
+            Manage your customer directory
           </p>
         </div>
         <Button
           onClick={openAdd}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 text-sm font-semibold"
           style={{
             background: "oklch(0.75 0.13 188 / 0.15)",
             border: "1px solid oklch(0.75 0.13 188 / 0.4)",
             color: "oklch(0.75 0.13 188)",
           }}
         >
-          <Plus className="w-4 h-4" /> Add Item
+          <Plus className="w-4 h-4" /> Add Customer
         </Button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            label: "Total Items",
-            value: items.length,
+            label: "Total",
+            value: customers.length,
             color: "oklch(0.75 0.13 188)",
           },
           {
-            label: "Low Stock",
-            value: lowStock.length,
-            color: "oklch(0.6 0.22 25)",
+            label: "Retail",
+            value: customers.filter((c) => c.customerType === "retail").length,
+            color: "oklch(0.65 0.18 250)",
           },
           {
-            label: "Total Qty",
-            value: items
-              .reduce((acc, i) => acc + Number(i.quantity), 0)
-              .toLocaleString(),
+            label: "Wholesale",
+            value: customers.filter((c) => c.customerType === "wholesale")
+              .length,
             color: "oklch(0.73 0.17 150)",
           },
           {
-            label: "Categories",
-            value: new Set(items.map((i) => i.unit)).size,
-            color: "oklch(0.65 0.18 250)",
+            label: "Hotel",
+            value: customers.filter((c) => c.customerType === "hotel").length,
+            color: "oklch(0.73 0.16 65)",
           },
         ].map((s, i) => (
           <motion.div
@@ -192,18 +188,18 @@ export default function Inventory() {
           style={{ borderColor: "oklch(0.21 0.02 240)" }}
         >
           <h2 className="text-base font-semibold text-foreground">
-            Inventory Items
+            Customer List
           </h2>
         </div>
         {isLoading ? (
           <div className="p-8 text-center text-muted-custom text-sm">
             Loading...
           </div>
-        ) : items.length === 0 ? (
+        ) : customers.length === 0 ? (
           <div className="p-12 flex flex-col items-center gap-3">
-            <Package className="w-10 h-10 text-tertiary" />
+            <Users className="w-10 h-10 text-tertiary" />
             <p className="text-sm text-muted-custom">
-              No items yet — add your first one
+              No customers yet — add your first one
             </p>
             <Button
               onClick={openAdd}
@@ -214,7 +210,7 @@ export default function Inventory() {
                 color: "oklch(0.75 0.13 188)",
               }}
             >
-              Add Item
+              Add Customer
             </Button>
           </div>
         ) : (
@@ -222,85 +218,59 @@ export default function Inventory() {
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: "1px solid oklch(0.17 0.018 240)" }}>
-                  {[
-                    "Name",
-                    "Quantity",
-                    "Unit",
-                    "Min Stock",
-                    "Supplier",
-                    "Status",
-                    "Actions",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-5 py-3 text-xs font-semibold text-tertiary"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  {["Name", "Phone", "Email", "Address", "Type", "Actions"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="text-left px-5 py-3 text-xs font-semibold text-tertiary"
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
-                  const isLow = Number(item.quantity) <= Number(item.minStock);
+                {customers.map((c) => {
+                  const tc = typeColors[c.customerType] || typeColors.retail;
                   return (
                     <tr
-                      key={String(item.id)}
+                      key={String(c.id)}
                       className="border-b transition-colors hover:bg-white/[0.02]"
                       style={{ borderColor: "oklch(0.17 0.018 240)" }}
                     >
                       <td className="px-5 py-3.5 text-xs font-semibold text-foreground">
-                        {item.name}
-                      </td>
-                      <td
-                        className="px-5 py-3.5 text-xs font-bold"
-                        style={{
-                          color: isLow
-                            ? "oklch(0.6 0.22 25)"
-                            : "oklch(0.73 0.17 150)",
-                        }}
-                      >
-                        {Number(item.quantity).toLocaleString()}
+                        {c.name}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-muted-custom">
-                        {item.unit}
+                        {c.phone}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-muted-custom">
-                        {Number(item.minStock).toLocaleString()}
+                        {c.email || "—"}
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-muted-custom">
-                        {item.supplier || "—"}
+                      <td className="px-5 py-3.5 text-xs text-muted-custom max-w-[180px] truncate">
+                        {c.address || "—"}
                       </td>
                       <td className="px-5 py-3.5">
-                        {isLow ? (
-                          <span
-                            className="flex items-center gap-1 text-[10px]"
-                            style={{ color: "oklch(0.6 0.22 25)" }}
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                            Low Stock
-                          </span>
-                        ) : (
-                          <span
-                            className="text-[10px]"
-                            style={{ color: "oklch(0.73 0.17 150)" }}
-                          >
-                            OK
-                          </span>
-                        )}
+                        <Badge
+                          className="text-[10px] font-semibold border-0 capitalize"
+                          style={{ background: tc.bg, color: tc.text }}
+                        >
+                          {c.customerType}
+                        </Badge>
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => openEdit(item)}
+                            onClick={() => openEdit(c)}
                             className="p-1.5 rounded text-tertiary hover:text-neon transition-colors"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => handleDelete(c.id)}
                             className="p-1.5 rounded text-tertiary hover:text-red-400 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -325,53 +295,77 @@ export default function Inventory() {
         >
           <DialogHeader>
             <DialogTitle className="text-foreground">
-              {editId !== null ? "Edit Item" : "Add Inventory Item"}
+              {editId !== null ? "Edit Customer" : "Add Customer"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {[
-              {
-                key: "name",
-                label: "Item Name *",
-                placeholder: "e.g. 20L Jars",
-              },
-              { key: "unit", label: "Unit", placeholder: "e.g. units, kg, L" },
-              {
-                key: "quantity",
-                label: "Current Quantity *",
-                placeholder: "e.g. 5000",
-                type: "number",
-              },
-              {
-                key: "minStock",
-                label: "Min Stock Level *",
-                placeholder: "e.g. 500",
-                type: "number",
-              },
-              {
-                key: "supplier",
-                label: "Supplier",
-                placeholder: "Supplier name",
-              },
-              {
-                key: "description",
-                label: "Description",
-                placeholder: "Optional notes",
-              },
-            ].map((f) => (
-              <div key={f.key} className="space-y-1.5">
-                <Label className="text-xs text-muted-custom">{f.label}</Label>
-                <Input
-                  type={f.type || "text"}
-                  value={form[f.key as keyof typeof form]}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, [f.key]: e.target.value }))
-                  }
-                  placeholder={f.placeholder}
-                  className="bg-transparent border-white/10 text-foreground"
-                />
-              </div>
-            ))}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-custom">Name *</Label>
+              <Input
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="Customer name"
+                className="bg-transparent border-white/10 text-foreground"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-custom">Phone</Label>
+              <Input
+                value={form.phone}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, phone: e.target.value }))
+                }
+                placeholder="Phone number"
+                className="bg-transparent border-white/10 text-foreground"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-custom">Email</Label>
+              <Input
+                value={form.email}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
+                placeholder="Email address"
+                className="bg-transparent border-white/10 text-foreground"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-custom">Address</Label>
+              <Input
+                value={form.address}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, address: e.target.value }))
+                }
+                placeholder="Full address"
+                className="bg-transparent border-white/10 text-foreground"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-custom">Customer Type</Label>
+              <Select
+                value={form.customerType}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, customerType: v as CustomerType }))
+                }
+              >
+                <SelectTrigger className="bg-transparent border-white/10 text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  style={{
+                    background: "oklch(0.13 0.015 240)",
+                    border: "1px solid oklch(0.21 0.02 240)",
+                  }}
+                >
+                  <SelectItem value="retail">Retail</SelectItem>
+                  <SelectItem value="wholesale">Wholesale</SelectItem>
+                  <SelectItem value="hotel">Hotel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"

@@ -10,7 +10,164 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface _SERVICE {}
+export interface ActivityLog {
+  'action' : string,
+  'user' : Principal,
+  'timestamp' : bigint,
+  'details' : string,
+}
+export type BatchStatus = { 'scheduled' : null } |
+  { 'completed' : null } |
+  { 'inProgress' : null };
+export interface Customer {
+  'customerType' : CustomerType,
+  'name' : string,
+  'email' : string,
+  'address' : string,
+  'phone' : string,
+}
+export type CustomerType = { 'retail' : null } |
+  { 'hotel' : null } |
+  { 'wholesale' : null };
+export interface Delivery {
+  'id' : bigint,
+  'customerName' : string,
+  'status' : DeliveryStatus,
+  'paymentMethod' : string,
+  'date' : bigint,
+  'quantity' : bigint,
+  'customerId' : bigint,
+  'truckNumber' : string,
+  'amount' : number,
+  'driverName' : string,
+  'remarks' : string,
+  'product' : ProductType,
+}
+export type DeliveryStatus = { 'pending' : null } |
+  { 'inTransit' : null } |
+  { 'delivered' : null };
+export interface InventoryItem {
+  'id' : bigint,
+  'supplier' : string,
+  'name' : string,
+  'unit' : string,
+  'description' : string,
+  'minStock' : bigint,
+  'quantity' : bigint,
+}
+export interface Invoice {
+  'id' : bigint,
+  'customerName' : string,
+  'status' : InvoiceStatus,
+  'date' : bigint,
+  'series' : string,
+  'customerId' : bigint,
+  'paymentTerms' : string,
+  'items' : string,
+  'amount' : number,
+}
+export type InvoiceStatus = { 'paid' : null } |
+  { 'unpaid' : null } |
+  { 'partial' : null };
+export interface KhataEntry {
+  'id' : bigint,
+  'entryType' : KhataEntryType,
+  'shopId' : bigint,
+  'date' : bigint,
+  'description' : string,
+  'shopName' : string,
+  'amount' : number,
+}
+export type KhataEntryType = { 'credit' : null } |
+  { 'debit' : null };
+export interface ProductBatch {
+  'id' : bigint,
+  'status' : BatchStatus,
+  'date' : bigint,
+  'shift' : Shift,
+  'batchNumber' : string,
+  'quantity' : bigint,
+  'product' : ProductType,
+}
+export type ProductType = { 'bottle200ml' : null } |
+  { 'bottle1L' : null } |
+  { 'jar20L' : null } |
+  { 'bottle500ml' : null };
+export type Shift = { 'morning' : null } |
+  { 'night' : null } |
+  { 'afternoon' : null };
+export interface Shop {
+  'id' : bigint,
+  'name' : string,
+  'contactPerson' : string,
+  'address' : string,
+  'shopType' : CustomerType,
+  'phone' : string,
+  'location' : string,
+}
+export interface UserProfile {
+  'name' : string,
+  'role' : string,
+  'email' : string,
+}
+export type UserRole = { 'admin' : null } |
+  { 'user' : null } |
+  { 'guest' : null };
+export interface _SERVICE {
+  '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addCustomer' : ActorMethod<[Customer], bigint>,
+  'addDelivery' : ActorMethod<[Delivery], bigint>,
+  'addInventoryItem' : ActorMethod<[InventoryItem], bigint>,
+  'addKhataEntry' : ActorMethod<[KhataEntry], bigint>,
+  'addProductionBatch' : ActorMethod<[ProductBatch], bigint>,
+  'addShop' : ActorMethod<[Shop], bigint>,
+  'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'createInvoice' : ActorMethod<[Invoice], bigint>,
+  'deleteBatch' : ActorMethod<[bigint], undefined>,
+  'deleteCustomer' : ActorMethod<[bigint], undefined>,
+  'deleteDelivery' : ActorMethod<[bigint], undefined>,
+  'deleteInventoryItem' : ActorMethod<[bigint], undefined>,
+  'deleteInvoice' : ActorMethod<[bigint], undefined>,
+  'deleteKhataEntry' : ActorMethod<[bigint], undefined>,
+  'deleteShop' : ActorMethod<[bigint], undefined>,
+  'getAllActivityLogs' : ActorMethod<[], Array<ActivityLog>>,
+  'getAllBatches' : ActorMethod<[], Array<ProductBatch>>,
+  'getAllCustomers' : ActorMethod<[], Array<Customer>>,
+  'getAllDeliveries' : ActorMethod<[], Array<Delivery>>,
+  'getAllInventoryItems' : ActorMethod<[], Array<InventoryItem>>,
+  'getAllInvoices' : ActorMethod<[], Array<Invoice>>,
+  'getAllKhataEntries' : ActorMethod<[], Array<KhataEntry>>,
+  'getAllShops' : ActorMethod<[], Array<Shop>>,
+  'getBatch' : ActorMethod<[bigint], [] | [ProductBatch]>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCustomer' : ActorMethod<[bigint], [] | [Customer]>,
+  'getDeliveriesByCustomer' : ActorMethod<[bigint], Array<Delivery>>,
+  'getDeliveriesByDateRange' : ActorMethod<[bigint, bigint], Array<Delivery>>,
+  'getDelivery' : ActorMethod<[bigint], [] | [Delivery]>,
+  'getInventoryItem' : ActorMethod<[bigint], [] | [InventoryItem]>,
+  'getInvoice' : ActorMethod<[bigint], [] | [Invoice]>,
+  'getInvoicesByCustomer' : ActorMethod<[bigint], Array<Invoice>>,
+  'getKhataEntriesByShop' : ActorMethod<[bigint], Array<KhataEntry>>,
+  'getKhataEntry' : ActorMethod<[bigint], [] | [KhataEntry]>,
+  'getLowStockItems' : ActorMethod<[], Array<InventoryItem>>,
+  'getPendingDeliveries' : ActorMethod<[], Array<Delivery>>,
+  'getProductionByDateRange' : ActorMethod<
+    [bigint, bigint],
+    Array<ProductBatch>
+  >,
+  'getShop' : ActorMethod<[bigint], [] | [Shop]>,
+  'getShopBalance' : ActorMethod<[bigint], number>,
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'isCallerAdmin' : ActorMethod<[], boolean>,
+  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'updateBatch' : ActorMethod<[bigint, ProductBatch], undefined>,
+  'updateCustomer' : ActorMethod<[bigint, Customer], undefined>,
+  'updateDelivery' : ActorMethod<[bigint, Delivery], undefined>,
+  'updateInventoryItem' : ActorMethod<[bigint, InventoryItem], undefined>,
+  'updateInvoice' : ActorMethod<[bigint, Invoice], undefined>,
+  'updateShop' : ActorMethod<[bigint, Shop], undefined>,
+}
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
 export declare const idlFactory: IDL.InterfaceFactory;
