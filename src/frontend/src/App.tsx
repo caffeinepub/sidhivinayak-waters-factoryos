@@ -5,11 +5,13 @@ import { useState } from "react";
 import Sidebar, { type Page } from "./components/Sidebar";
 import AIPanel from "./pages/AIPanel";
 import Billing from "./pages/Billing";
+import Chat from "./pages/Chat";
 import Customers from "./pages/Customers";
 import Dashboard from "./pages/Dashboard";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
 import Khata from "./pages/Khata";
+import Manager from "./pages/Manager";
 import Production from "./pages/Production";
 import QRScanner from "./pages/QRScanner";
 import Reports from "./pages/Reports";
@@ -32,6 +34,8 @@ function pageTitle(page: Page): string {
     shops: "Shops",
     khata: "Khata",
     "ai-panel": "AI Panel",
+    manager: "Manager Panel",
+    chat: "Team Chat",
   };
   return titles[page];
 }
@@ -71,6 +75,10 @@ function AppContent() {
         return <Khata />;
       case "ai-panel":
         return <AIPanel />;
+      case "chat":
+        return <Chat />;
+      case "manager":
+        return <Manager />;
     }
   };
 

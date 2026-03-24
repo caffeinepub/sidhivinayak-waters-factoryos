@@ -2,9 +2,11 @@ import {
   BarChart3,
   BookOpen,
   Brain,
+  Briefcase,
   ChevronRight,
   Factory,
   LayoutDashboard,
+  MessageCircle,
   Package,
   Receipt,
   ScanLine,
@@ -27,7 +29,9 @@ export type Page =
   | "scanner"
   | "shops"
   | "khata"
-  | "ai-panel";
+  | "ai-panel"
+  | "chat"
+  | "manager";
 
 interface NavItem {
   id: Page;
@@ -65,6 +69,13 @@ const navItems: NavItem[] = [
   { id: "billing", label: "Billing", icon: Receipt, section: "sales" },
   { id: "khata", label: "Khata", icon: BookOpen, section: "sales" },
   {
+    id: "manager",
+    label: "Manager Panel",
+    icon: Briefcase,
+    section: "management",
+  },
+  { id: "chat", label: "Team Chat", icon: MessageCircle, section: "comm" },
+  {
     id: "reports",
     label: "Reports",
     icon: BarChart3,
@@ -85,6 +96,8 @@ const sections: { key: string; label: string }[] = [
   { key: "main", label: "" },
   { key: "ops", label: "Operations" },
   { key: "sales", label: "Sales" },
+  { key: "management", label: "Management" },
+  { key: "comm", label: "Communication" },
   { key: "intel", label: "Intelligence" },
 ];
 
@@ -182,26 +195,16 @@ export default function Sidebar({
                       }
                     >
                       <Icon
-                        className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                          isActive
-                            ? "text-neon"
-                            : "text-tertiary group-hover:text-neon-bright"
-                        }`}
+                        className={`w-4 h-4 flex-shrink-0 transition-colors ${isActive ? "text-neon" : "text-tertiary group-hover:text-neon-bright"}`}
                       />
                       <span
-                        className={`text-sm flex-1 transition-colors ${
-                          isActive
-                            ? "text-neon font-semibold"
-                            : "text-muted-custom font-medium group-hover:text-foreground"
-                        }`}
+                        className={`text-sm flex-1 transition-colors ${isActive ? "text-neon font-semibold" : "text-muted-custom font-medium group-hover:text-foreground"}`}
                       >
                         {item.label}
                       </span>
                       {item.hasChildren && (
                         <ChevronRight
-                          className={`w-3 h-3 ${
-                            isActive ? "text-neon" : "text-tertiary"
-                          }`}
+                          className={`w-3 h-3 ${isActive ? "text-neon" : "text-tertiary"}`}
                         />
                       )}
                     </button>

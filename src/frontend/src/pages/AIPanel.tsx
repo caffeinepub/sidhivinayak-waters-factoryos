@@ -5,11 +5,13 @@ import {
   Brain,
   Lightbulb,
   Loader2,
+  Send,
   TrendingUp,
   Truck,
   Wallet,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useRef, useState } from "react";
 import { useActor } from "../hooks/useActor";
 
 const agents = [
@@ -35,7 +37,7 @@ const agents = [
     icon: "⚖️",
     name: "AI Legal",
     role: "Risk alerts & compliance",
-    status: "standby",
+    status: "active",
   },
   {
     icon: "🧑‍💼",
@@ -45,8 +47,104 @@ const agents = [
   },
 ];
 
+function getAIResponse(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("inventory") || m.includes("stock"))
+    return "📦 Inventory Insight: Monitor your stock levels daily. For a water bottling plant, maintain at least 2 weeks of PET bottle stock. Use the Low Stock alerts to trigger reorder before running out. Consider setting reorder levels at 20% of monthly consumption.";
+  if (m.includes("production") || m.includes("batch"))
+    return "🏭 Production Tip: Track every batch with QR codes. Optimal shift planning — ensure 3 production runs per day for maximum output. Log MFG/EXP dates accurately on every box. Review batch rejection rates weekly.";
+  if (m.includes("billing") || m.includes("invoice"))
+    return "🧾 Billing Insight: Follow up on unpaid invoices within 7 days. Offer early payment discounts (1-2%) to improve cash flow. Use the series field to track seasonal billing cycles. Share bills via WhatsApp for faster payment confirmation.";
+  if (m.includes("profit") || m.includes("revenue") || m.includes("loss"))
+    return "💰 Profit Optimization: For a water factory, target 35-45% gross margin. Key cost drivers are packaging materials (30%), labor (25%), and utilities (15%). Bulk purchasing of raw materials can reduce material costs by 10-15%.";
+  if (
+    m.includes("raw material") ||
+    m.includes("material") ||
+    m.includes("bottle")
+  )
+    return "🧴 Material Management: Maintain supplier relationships with at least 2 backup dealers per material. PET preforms and caps are critical — never let stock fall below 3-day supply. Track material quality in your documents module.";
+  if (m.includes("delivery") || m.includes("dispatch") || m.includes("truck"))
+    return "🚚 Delivery Optimization: Group deliveries by area to reduce fuel costs. Real-time tracking via delivery status helps reduce customer complaints by 40%. Prioritize paid orders for same-day dispatch.";
+  if (m.includes("shop") || m.includes("dealer") || m.includes("customer"))
+    return "🏪 Shop Management: Maintain Khata records for every shop. High-frequency shops (daily orders) deserve priority delivery slots. Review shop credit limits monthly using the Khata balance data.";
+  if (m.includes("help") || m.includes("what can"))
+    return "🤖 I can help with: inventory management, production optimization, billing insights, profit analysis, raw material procurement, delivery scheduling, shop management, and factory operations. Just ask about any topic!";
+  return "🧠 Factory Analysis: Based on standard water bottling operations, focus on three pillars: (1) Quality — log every batch and maintain QR traceability, (2) Cash Flow — follow up invoices weekly and track Khata balances, (3) Efficiency — optimize production shifts and minimize raw material wastage. What specific area would you like to improve?";
+}
+
+interface ChatMsg {
+  id: string;
+  role: "user" | "ai";
+  text: string;
+}
+
 export default function AIPanel() {
   const { actor } = useActor();
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
+    {
+      id: "intro",
+      role: "ai",
+      text: "👋 Hello! I'm your FactoryOS AI Assistant. I can help with inventory, production, billing, profit analysis, raw materials, and more. What would you like to know?",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const askAgent = (agentName: string) => {
+    const topics: Record<string, string> = {
+      "AI Manager": "What should I focus on for better operations management?",
+      "AI Analyst": "What are the current sales trends?",
+      "AI CA": "How can I improve profit and payment tracking?",
+      "AI Legal": "What compliance risks should I be aware of?",
+      "AI Operations": "How can I optimize production and delivery?",
+    };
+    const text = topics[agentName] || `Tell me about ${agentName}`;
+    if (isThinking) return;
+    const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: "user", text };
+    setChatMessages((p) => [...p, userMsg]);
+    setIsThinking(true);
+    setTimeout(
+      () => {
+        const aiText = getAIResponse(text);
+        setChatMessages((p) => [
+          ...p,
+          { id: `a-${Date.now()}`, role: "ai", text: aiText },
+        ]);
+        setIsThinking(false);
+        setTimeout(
+          () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+          100,
+        );
+      },
+      1000 + Math.random() * 800,
+    );
+  };
+
+  const sendMessage = async () => {
+    const text = chatInput.trim();
+    if (!text || isThinking) return;
+    setChatInput("");
+    const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: "user", text };
+    setChatMessages((p) => [...p, userMsg]);
+    setIsThinking(true);
+    setTimeout(() => {
+      const aiText = getAIResponse(text);
+      setChatMessages((p) => [
+        ...p,
+        { id: `a-${Date.now()}`, role: "ai", text: aiText },
+      ]);
+      setIsThinking(false);
+      setTimeout(
+        () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+        50,
+      );
+    }, 1000);
+    setTimeout(
+      () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+      50,
+    );
+  };
 
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices"],
@@ -261,6 +359,17 @@ export default function AIPanel() {
                   {agent.status === "active" ? "Active" : "Standby"}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => askAgent(agent.name)}
+                className="mt-2 w-full text-[10px] py-1 rounded-md font-semibold transition-opacity hover:opacity-80"
+                style={{
+                  background: "oklch(0.75 0.13 188 / 0.15)",
+                  color: "oklch(0.75 0.13 188)",
+                }}
+              >
+                Ask AI
+              </button>
             </motion.div>
           ))}
         </div>
@@ -363,6 +472,107 @@ export default function AIPanel() {
               <p className="text-sm text-foreground">{s}</p>
             </motion.div>
           ))}
+        </div>
+      </div>
+
+      {/* AI Assistant Chat */}
+      <div>
+        <p className="text-xs font-bold text-tertiary uppercase tracking-widest mb-3">
+          🤖 AI Assistant — Ask Me Anything
+        </p>
+        <div
+          className="rounded-xl overflow-hidden"
+          style={{
+            background: "oklch(0.13 0.015 240)",
+            border: "1px solid oklch(0.75 0.13 188 / 0.25)",
+          }}
+        >
+          {/* Chat messages */}
+          <div className="h-72 overflow-y-auto p-4 space-y-3">
+            <AnimatePresence initial={false}>
+              {chatMessages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className="max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed"
+                    style={
+                      msg.role === "user"
+                        ? {
+                            background: "oklch(0.75 0.13 188 / 0.2)",
+                            color: "oklch(0.9 0.05 188)",
+                            border: "1px solid oklch(0.75 0.13 188 / 0.4)",
+                          }
+                        : {
+                            background: "oklch(0.11 0.012 240)",
+                            color: "oklch(0.85 0.02 240)",
+                            border: "1px solid oklch(0.21 0.02 240)",
+                          }
+                    }
+                  >
+                    {msg.text}
+                  </div>
+                </motion.div>
+              ))}
+              {isThinking && (
+                <motion.div
+                  key="thinking"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div
+                    className="rounded-xl px-4 py-3 flex gap-1 items-center"
+                    style={{
+                      background: "oklch(0.11 0.012 240)",
+                      border: "1px solid oklch(0.21 0.02 240)",
+                    }}
+                  >
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{
+                          background: "oklch(0.75 0.13 188)",
+                          animation: `bounce 1s ease-in-out ${i * 0.2}s infinite`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div ref={chatEndRef} />
+          </div>
+          {/* Input */}
+          <div
+            className="flex gap-2 p-3 border-t"
+            style={{ borderColor: "oklch(0.21 0.02 240)" }}
+          >
+            <input
+              data-ocid="ai.chat.input"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendMessage();
+              }}
+              placeholder="Ask about inventory, production, billing, profit..."
+              className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-tertiary"
+            />
+            <button
+              type="button"
+              data-ocid="ai.chat.button"
+              onClick={sendMessage}
+              disabled={isThinking || !chatInput.trim()}
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-opacity hover:opacity-80 disabled:opacity-40"
+              style={{ background: "oklch(0.75 0.13 188)" }}
+            >
+              <Send className="w-4 h-4" style={{ color: "#000" }} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

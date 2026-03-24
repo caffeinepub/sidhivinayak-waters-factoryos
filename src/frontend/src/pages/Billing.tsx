@@ -16,12 +16,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { Eye, Plus, Receipt, Trash2, X } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Invoice, InvoiceStatus } from "../backend";
 import { useActor } from "../hooks/useActor";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 type InvoiceWithId = Invoice & { id: bigint };
 
@@ -48,6 +51,18 @@ const statusStyle: Record<string, { bg: string; text: string }> = {
   partial: { bg: "oklch(0.73 0.16 65 / 0.12)", text: "oklch(0.73 0.16 65)" },
 };
 
+// Candid variant helpers — Motoko variants serialize as { paid: null } objects
+const toVariantStatus = (s: string) =>
+  ({ [s]: null }) as unknown as InvoiceStatus;
+const fromVariantStatus = (v: InvoiceStatus): string => {
+  if (typeof v === "string") return v; // fallback if already a string
+  return Object.keys(v as unknown as object)[0] ?? "unpaid";
+};
+const normalizeInvoice = (inv: InvoiceWithId): InvoiceWithId => ({
+  ...inv,
+  status: fromVariantStatus(inv.status) as unknown as InvoiceStatus,
+});
+
 function calcTotal(items: LineItem[]) {
   return items.reduce((sum, i) => sum + i.qty * i.rate, 0);
 }
@@ -62,8 +77,43 @@ function parsedItems(items: string): LineItem[] {
     : [];
 }
 
+function buildShareText(inv: InvoiceWithId): string {
+  const dateStr = new Date(Number(inv.date) / 1_000_000).toLocaleDateString(
+    "en-IN",
+    { day: "2-digit", month: "short", year: "numeric" },
+  );
+  const items = parsedItems(inv.items);
+  const itemLines = items
+    .map(
+      (it) =>
+        `  • ${it.productName} — Qty: ${it.qty} × ₹${it.rate} = ₹${(it.qty * it.rate).toLocaleString("en-IN")}`,
+    )
+    .join("\n");
+  return [
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "      SIDHIVINAYAK WATERS",
+    "  Premium Packaged Drinking Water",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    `Bill No : ${inv.series || `#${String(inv.id)}`}`,
+    `Date    : ${dateStr}`,
+    `Customer: ${inv.customerName}`,
+    `Status  : ${String(inv.status).toUpperCase()}`,
+    inv.paymentTerms ? `Terms   : ${inv.paymentTerms}` : "",
+    "──────────────────────────────",
+    "ITEMS:",
+    itemLines,
+    "──────────────────────────────",
+    `TOTAL   : ₹${inv.amount.toLocaleString("en-IN")}`,
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "Thank you for your business!",
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+}
+
 export default function Billing() {
-  const { actor } = useActor();
+  const { actor, isFetching } = useActor();
+  const { identity, login, isLoggingIn } = useInternetIdentity() as any;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(blankForm());
@@ -71,12 +121,13 @@ export default function Billing() {
   const [viewInv, setViewInv] = useState<InvoiceWithId | null>(null);
   const [statusUpdateId, setStatusUpdateId] = useState<bigint | null>(null);
   const [newStatus, setNewStatus] = useState("unpaid" as InvoiceStatus);
+  const customerNameRef = useRef<HTMLInputElement>(null);
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
       const list = await actor!.getAllInvoices();
-      return list as unknown as InvoiceWithId[];
+      return (list as unknown as InvoiceWithId[]).map(normalizeInvoice);
     },
     enabled: !!actor,
   });
@@ -117,7 +168,13 @@ export default function Billing() {
     }));
 
   const handleSave = async () => {
-    if (!actor || !form.customerName.trim()) {
+    if (!actor) {
+      toast.error("Still loading, please wait...");
+      return;
+    }
+    const customerNameValue =
+      customerNameRef.current?.value?.trim() || form.customerName.trim();
+    if (!customerNameValue) {
       toast.error("Customer name is required");
       return;
     }
@@ -133,9 +190,9 @@ export default function Billing() {
     try {
       await actor.createInvoice({
         id: BigInt(0),
-        customerName: form.customerName,
+        customerName: customerNameValue,
         amount: total,
-        status: form.status,
+        status: toVariantStatus(form.status as unknown as string),
         series: form.series || `INV-${Date.now()}`,
         paymentTerms: form.paymentTerms,
         items: JSON.stringify(form.lineItems),
@@ -169,12 +226,102 @@ export default function Billing() {
     const inv = invoices.find((i) => i.id === statusUpdateId);
     if (!inv) return;
     try {
-      await actor.updateInvoice(statusUpdateId, { ...inv, status: newStatus });
+      await actor.updateInvoice(statusUpdateId, {
+        ...inv,
+        status: toVariantStatus(newStatus as unknown as string),
+      });
       toast.success("Status updated");
       refresh();
       setStatusUpdateId(null);
     } catch {
       toast.error("Failed to update status");
+    }
+  };
+
+  const handleShareBill = async (inv: InvoiceWithId) => {
+    const text = buildShareText(inv);
+    const title = "Bill - Sidhivinayak Waters";
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text });
+      } catch {
+        // user cancelled or share failed — silently ignore
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success("Bill details copied!");
+      } catch {
+        toast.error("Could not copy to clipboard");
+      }
+    }
+  };
+
+  const handleWhatsAppShare = (inv: InvoiceWithId) => {
+    const dateStr = new Date(Number(inv.date) / 1_000_000).toLocaleDateString(
+      "en-IN",
+      { day: "2-digit", month: "short", year: "numeric" },
+    );
+    const items = parsedItems(inv.items);
+    const itemLines = items
+      .map(
+        (it) =>
+          `• ${it.productName} x${it.qty} @ ₹${it.rate} = ₹${(it.qty * it.rate).toLocaleString("en-IN")}`,
+      )
+      .join("\n");
+    const gst = Math.round(inv.amount * 0.18);
+    const subtotal = inv.amount - gst;
+    const text = [
+      "*SIDHIVINAYAK WATERS*",
+      `Invoice #${inv.series || String(inv.id)}`,
+      `Date: ${dateStr}`,
+      `Customer: ${inv.customerName}`,
+      "",
+      "Items:",
+      itemLines,
+      "",
+      `Subtotal: ₹${subtotal.toLocaleString("en-IN")}`,
+      `GST (18%): ₹${gst.toLocaleString("en-IN")}`,
+      `*Total: ₹${inv.amount.toLocaleString("en-IN")}*`,
+      "",
+      `Status: ${String(inv.status).toUpperCase()}`,
+      "",
+      "Thank you for your business!",
+      "Sidhivinayak Waters",
+    ].join("\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  const handleDownloadPDF = async (_inv: InvoiceWithId) => {
+    const billEl = document.getElementById("bill-print");
+    if (!billEl) return;
+    try {
+      toast.info("Generating PDF...");
+      const canvas = await html2canvas(billEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const ratio = canvas.width / canvas.height;
+      let imgW = pageW - 20;
+      let imgH = imgW / ratio;
+      if (imgH > pageH - 20) {
+        imgH = pageH - 20;
+        imgW = imgH * ratio;
+      }
+      pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, 10, imgW, imgH);
+      pdf.save(`Bill-${_inv.customerName}-${_inv.series || _inv.id}.pdf`);
+      toast.success("PDF saved!");
+    } catch {
+      toast.error("PDF generation failed");
     }
   };
 
@@ -186,6 +333,33 @@ export default function Billing() {
     (sum, inv) => sum + (inv.status !== "paid" ? inv.amount : 0),
     0,
   );
+
+  if (!identity) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-6">
+        <div className="text-6xl">🧾</div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-foreground mb-2">Billing</h2>
+          <p className="text-muted-foreground text-sm mb-6">
+            Login with Internet Identity to create and manage bills
+          </p>
+          <button
+            type="button"
+            onClick={login}
+            disabled={isLoggingIn}
+            className="px-6 py-2.5 rounded-lg font-semibold text-sm transition-all"
+            style={{
+              background: "oklch(0.75 0.13 188)",
+              color: "oklch(0.10 0.012 240)",
+              boxShadow: "0 0 16px oklch(0.75 0.13 188 / 0.4)",
+            }}
+          >
+            {isLoggingIn ? "Logging in..." : "Login to Continue"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -449,9 +623,16 @@ export default function Billing() {
                   Customer Name *
                 </Label>
                 <Input
+                  ref={customerNameRef}
                   value={form.customerName}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, customerName: e.target.value }))
+                  }
+                  onInput={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      customerName: (e.target as HTMLInputElement).value,
+                    }))
                   }
                   placeholder="Customer name"
                   className="bg-transparent border-white/10 text-foreground"
@@ -636,7 +817,7 @@ export default function Billing() {
                 Cancel
               </Button>
               <Button
-                disabled={saving}
+                disabled={saving || !actor}
                 onClick={handleSave}
                 className="flex-1"
                 style={{
@@ -645,7 +826,11 @@ export default function Billing() {
                   color: "oklch(0.75 0.13 188)",
                 }}
               >
-                {saving ? "Saving..." : "Create Bill"}
+                {saving
+                  ? "Saving..."
+                  : !actor && isFetching
+                    ? "Loading..."
+                    : "Create Bill"}
               </Button>
             </div>
           </div>
@@ -655,99 +840,489 @@ export default function Billing() {
       {/* View Bill Modal */}
       <Dialog open={!!viewInv} onOpenChange={() => setViewInv(null)}>
         <DialogContent
-          style={{ background: "#fff", color: "#000", maxWidth: "480px" }}
-          className="text-black"
+          style={{
+            background: "#ffffff",
+            color: "#111",
+            maxWidth: "520px",
+            padding: 0,
+            overflow: "hidden",
+          }}
+          className="text-black p-0"
         >
-          <div id="bill-print">
-            <div className="text-center pb-4 border-b border-gray-200">
-              <h1 className="text-2xl font-bold text-blue-900">
-                Sidhivinayak Waters
-              </h1>
-              <p className="text-sm text-gray-500">FactoryOS • Official Bill</p>
-            </div>
-            {viewInv && (
-              <div className="pt-4 space-y-4">
-                <div className="flex justify-between text-sm">
-                  <div>
-                    <p className="text-gray-500 text-xs">Bill To</p>
-                    <p className="font-bold">{viewInv.customerName}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-gray-500 text-xs">Bill No.</p>
-                    <p className="font-bold">
-                      {viewInv.series || `#${String(viewInv.id)}`}
-                    </p>
-                    <p className="text-gray-500 text-xs mt-1">
-                      {new Date(
-                        Number(viewInv.date) / 1_000_000,
-                      ).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </p>
+          {/* Print styles injected inline */}
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              #bill-print, #bill-print * { visibility: visible !important; }
+              #bill-print position: fixed; inset: 0; padding: 32px; 
+              #bill-no-print display: none !important; 
+            }
+          `}</style>
+
+          {viewInv && (
+            <>
+              {/* Printable area */}
+              <div
+                id="bill-print"
+                style={{ background: "#fff", padding: "28px 28px 20px" }}
+              >
+                {/* Company header */}
+                <div
+                  style={{
+                    borderBottom: "2px solid #0A1F44",
+                    paddingBottom: "14px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div>
+                      <h1
+                        style={{
+                          fontSize: "22px",
+                          fontWeight: 800,
+                          color: "#0A1F44",
+                          margin: 0,
+                          letterSpacing: "-0.3px",
+                        }}
+                      >
+                        Sidhivinayak Waters
+                      </h1>
+                      <p
+                        style={{
+                          fontSize: "11px",
+                          color: "#555",
+                          margin: "2px 0 0",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Premium Packaged Drinking Water
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "10px",
+                          color: "#777",
+                          margin: "6px 0 0",
+                        }}
+                      >
+                        Factory Address: Maharashtra, India
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "10px",
+                          color: "#777",
+                          margin: "2px 0 0",
+                        }}
+                      >
+                        Phone: +91 XXXXXXXXXX
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "10px",
+                          color: "#777",
+                          margin: "2px 0 0",
+                        }}
+                      >
+                        GSTIN: XXXXXXXXXXXX
+                      </p>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          background: "#0A1F44",
+                          color: "#fff",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          padding: "4px 12px",
+                          borderRadius: "4px",
+                          letterSpacing: "1px",
+                        }}
+                      >
+                        TAX INVOICE
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <table className="w-full text-sm border border-gray-200 rounded">
+                {/* Bill To + Bill Details */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "18px",
+                  }}
+                >
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        color: "#888",
+                        margin: "0 0 3px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Bill To
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        color: "#0A1F44",
+                        margin: 0,
+                      }}
+                    >
+                      {viewInv.customerName}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <table
+                      style={{
+                        fontSize: "11px",
+                        color: "#555",
+                        borderCollapse: "collapse",
+                      }}
+                    >
+                      <tbody>
+                        <tr>
+                          <td style={{ paddingRight: "10px", color: "#888" }}>
+                            Bill No.
+                          </td>
+                          <td style={{ fontWeight: 700, color: "#0A1F44" }}>
+                            {viewInv.series || `#${String(viewInv.id)}`}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ paddingRight: "10px", color: "#888" }}>
+                            Date
+                          </td>
+                          <td style={{ fontWeight: 600 }}>
+                            {new Date(
+                              Number(viewInv.date) / 1_000_000,
+                            ).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
+                        </tr>
+                        {viewInv.paymentTerms && (
+                          <tr>
+                            <td style={{ paddingRight: "10px", color: "#888" }}>
+                              Terms
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {viewInv.paymentTerms}
+                            </td>
+                          </tr>
+                        )}
+                        <tr>
+                          <td style={{ paddingRight: "10px", color: "#888" }}>
+                            Status
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "1px 8px",
+                                borderRadius: "999px",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                textTransform: "capitalize",
+                                background:
+                                  String(viewInv.status) === "paid"
+                                    ? "#d1fae5"
+                                    : String(viewInv.status) === "partial"
+                                      ? "#fef3c7"
+                                      : "#fee2e2",
+                                color:
+                                  String(viewInv.status) === "paid"
+                                    ? "#065f46"
+                                    : String(viewInv.status) === "partial"
+                                      ? "#92400e"
+                                      : "#991b1b",
+                              }}
+                            >
+                              {String(viewInv.status)}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "12px",
+                    marginBottom: "4px",
+                  }}
+                >
                   <thead>
-                    <tr className="bg-blue-50">
-                      <th className="text-left px-3 py-2 text-xs">Item</th>
-                      <th className="text-center px-2 py-2 text-xs">Qty</th>
-                      <th className="text-center px-2 py-2 text-xs">Rate</th>
-                      <th className="text-right px-3 py-2 text-xs">Amount</th>
+                    <tr style={{ background: "#0A1F44" }}>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: "11px",
+                        }}
+                      >
+                        Item
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "center",
+                          padding: "8px 8px",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: "11px",
+                          width: "56px",
+                        }}
+                      >
+                        Qty
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "center",
+                          padding: "8px 8px",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: "11px",
+                          width: "80px",
+                        }}
+                      >
+                        Rate (₹)
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "right",
+                          padding: "8px 12px",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: "11px",
+                          width: "90px",
+                        }}
+                      >
+                        Amount (₹)
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {parsedItems(viewInv.items).map((item, i) => (
-                      // biome-ignore lint/suspicious/noArrayIndexKey: static bill view list
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="px-3 py-2">{item.productName || "—"}</td>
-                        <td className="px-2 py-2 text-center">{item.qty}</td>
-                        <td className="px-2 py-2 text-center">₹{item.rate}</td>
-                        <td className="px-3 py-2 text-right font-semibold">
+                      <tr
+                        key={item._id}
+                        style={{
+                          background: i % 2 === 0 ? "#f8fafc" : "#fff",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <td style={{ padding: "8px 12px", color: "#1e293b" }}>
+                          {item.productName || "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            textAlign: "center",
+                            color: "#334155",
+                          }}
+                        >
+                          {item.qty}
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            textAlign: "center",
+                            color: "#334155",
+                          }}
+                        >
+                          ₹{item.rate.toLocaleString("en-IN")}
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px 12px",
+                            textAlign: "right",
+                            fontWeight: 600,
+                            color: "#1e293b",
+                          }}
+                        >
                           ₹{(item.qty * item.rate).toLocaleString("en-IN")}
                         </td>
                       </tr>
                     ))}
-                    <tr className="border-t-2 border-gray-300 bg-gray-50">
+                    <tr
+                      style={{
+                        background: "#eff6ff",
+                        borderTop: "2px solid #0A1F44",
+                      }}
+                    >
                       <td
                         colSpan={3}
-                        className="px-3 py-2 font-bold text-right"
+                        style={{
+                          padding: "10px 12px",
+                          textAlign: "right",
+                          fontWeight: 800,
+                          fontSize: "13px",
+                          color: "#0A1F44",
+                        }}
                       >
                         TOTAL
                       </td>
-                      <td className="px-3 py-2 font-bold text-right text-blue-900">
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          textAlign: "right",
+                          fontWeight: 800,
+                          fontSize: "14px",
+                          color: "#0A1F44",
+                        }}
+                      >
                         ₹{viewInv.amount.toLocaleString("en-IN")}
                       </td>
                     </tr>
                   </tbody>
                 </table>
 
-                {viewInv.paymentTerms && (
-                  <p className="text-xs text-gray-500">
-                    Payment Terms: {viewInv.paymentTerms}
+                {/* Footer */}
+                <div
+                  style={{
+                    marginTop: "20px",
+                    borderTop: "1px solid #e2e8f0",
+                    paddingTop: "14px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748b",
+                      fontStyle: "italic",
+                      margin: 0,
+                    }}
+                  >
+                    Thank you for your business!
                   </p>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    onClick={() => setViewInv(null)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Close
-                  </Button>
-                  <Button
-                    onClick={() => window.print()}
-                    className="flex-1 bg-blue-900 text-white hover:bg-blue-800"
-                  >
-                    🖨 Print Bill
-                  </Button>
+                  <div style={{ textAlign: "right" }}>
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        color: "#94a3b8",
+                        margin: "0 0 18px",
+                      }}
+                    >
+                      Authorized Signatory
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "#0A1F44",
+                        margin: 0,
+                        borderTop: "1px solid #0A1F44",
+                        paddingTop: "4px",
+                      }}
+                    >
+                      Sidhivinayak Waters
+                    </p>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Action buttons — hidden on print */}
+              <div
+                id="bill-no-print"
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  padding: "14px 28px 20px",
+                  background: "#f8fafc",
+                  borderTop: "1px solid #e2e8f0",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewInv(null)}
+                  style={{
+                    flex: 1,
+                    padding: "9px",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    background: "#fff",
+                    color: "#475569",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPDF(viewInv!)}
+                  style={{
+                    flex: 1,
+                    padding: "9px",
+                    border: "none",
+                    borderRadius: "6px",
+                    background: "#0A1F44",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ⬇ Save as PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleShareBill(viewInv)}
+                  style={{
+                    flex: 1,
+                    padding: "9px",
+                    border: "none",
+                    borderRadius: "6px",
+                    background: "#0ea5e9",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  📤 Share Bill
+                </button>
+                <button
+                  type="button"
+                  data-ocid="billing.whatsapp_button"
+                  onClick={() => handleWhatsAppShare(viewInv)}
+                  style={{
+                    flex: 1,
+                    padding: "9px",
+                    border: "none",
+                    borderRadius: "6px",
+                    background: "#25D366",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  💬 WhatsApp
+                </button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

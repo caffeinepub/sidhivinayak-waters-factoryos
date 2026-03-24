@@ -26,8 +26,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion } from "motion/react";
-import QRCodeLib from "qrcode";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { BatchStatus, ProductBatch, ProductType, Shift } from "../backend";
 import { useActor } from "../hooks/useActor";
@@ -83,6 +82,20 @@ function isoDate(ms: number) {
   return new Date(ms).toISOString().split("T")[0];
 }
 
+function buildQrUrl(batch: BatchWithId): string {
+  const mfgMs = Number(batch.date) / 1_000_000;
+  const expMs = addOneYear(mfgMs);
+  const data = JSON.stringify({
+    company: "Sidhivinayak Waters",
+    batch: batch.batchNumber || `BATCH${String(batch.id)}`,
+    box: `BOX${String(batch.id).padStart(4, "0")}`,
+    mfg: isoDate(mfgMs),
+    exp: isoDate(expMs),
+    qty: Number(batch.quantity),
+  });
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(data)}`;
+}
+
 export default function Production() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -92,7 +105,6 @@ export default function Production() {
   const [qtyStr, setQtyStr] = useState("");
   const [saving, setSaving] = useState(false);
   const [qrBatch, setQrBatch] = useState<BatchWithId | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
   const { data: batches = [], isLoading } = useQuery({
     queryKey: ["batches"],
@@ -105,27 +117,6 @@ export default function Production() {
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["batches"] });
-
-  useEffect(() => {
-    if (!qrBatch) return;
-    const mfgMs = Number(qrBatch.date) / 1_000_000;
-    const expMs = addOneYear(mfgMs);
-    const data = JSON.stringify({
-      company: "Sidhivinayak Waters",
-      batch: qrBatch.batchNumber || `BATCH${String(qrBatch.id)}`,
-      box: `BOX${String(qrBatch.id).padStart(4, "0")}`,
-      mfg: isoDate(mfgMs),
-      exp: isoDate(expMs),
-      qty: Number(qrBatch.quantity),
-    });
-    QRCodeLib.toDataURL(data, {
-      width: 220,
-      margin: 2,
-      color: { dark: "#000000", light: "#ffffff" },
-    })
-      .then(setQrDataUrl)
-      .catch(() => setQrDataUrl(""));
-  }, [qrBatch]);
 
   const openAdd = () => {
     setForm(blankForm());
@@ -508,18 +499,12 @@ export default function Production() {
           </DialogHeader>
           {qrBatch && (
             <div className="flex flex-col items-center gap-4">
-              {qrDataUrl ? (
-                <img
-                  src={qrDataUrl}
-                  alt="QR Code"
-                  className="rounded-lg"
-                  style={{ width: 220, height: 220 }}
-                />
-              ) : (
-                <div className="w-[220px] h-[220px] rounded-lg bg-white/5 flex items-center justify-center text-tertiary text-sm">
-                  Generating...
-                </div>
-              )}
+              <img
+                src={buildQrUrl(qrBatch)}
+                alt="QR Code"
+                className="rounded-lg bg-white"
+                style={{ width: 220, height: 220 }}
+              />
               <div
                 className="w-full text-center space-y-0.5 py-3 px-4 rounded-lg"
                 style={{
@@ -565,7 +550,7 @@ export default function Production() {
                     color: "oklch(0.75 0.13 188)",
                   }}
                 >
-                  🖨 Print
+                  🖸 Print
                 </Button>
               </div>
             </div>

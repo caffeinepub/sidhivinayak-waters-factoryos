@@ -19,6 +19,14 @@ export interface ActivityLog {
 export type BatchStatus = { 'scheduled' : null } |
   { 'completed' : null } |
   { 'inProgress' : null };
+export interface ChatMessage {
+  'id' : bigint,
+  'content' : string,
+  'sender' : Principal,
+  'timestamp' : bigint,
+  'senderName' : string,
+  'channel' : string,
+}
 export interface Customer {
   'customerType' : CustomerType,
   'name' : string,
@@ -29,6 +37,15 @@ export interface Customer {
 export type CustomerType = { 'retail' : null } |
   { 'hotel' : null } |
   { 'wholesale' : null };
+export interface Dealer {
+  'id' : string,
+  'name' : string,
+  'email' : string,
+  'company' : string,
+  'notes' : string,
+  'phone' : string,
+  'material' : string,
+}
 export interface Delivery {
   'id' : bigint,
   'customerName' : string,
@@ -46,6 +63,13 @@ export interface Delivery {
 export type DeliveryStatus = { 'pending' : null } |
   { 'inTransit' : null } |
   { 'delivered' : null };
+export interface Document {
+  'id' : string,
+  'title' : string,
+  'content' : string,
+  'createdAt' : bigint,
+  'updatedAt' : bigint,
+}
 export interface InventoryItem {
   'id' : bigint,
   'supplier' : string,
@@ -93,6 +117,15 @@ export type ProductType = { 'bottle200ml' : null } |
   { 'bottle1L' : null } |
   { 'jar20L' : null } |
   { 'bottle500ml' : null };
+export interface RawMaterial {
+  'id' : string,
+  'status' : string,
+  'name' : string,
+  'unit' : string,
+  'notes' : string,
+  'quantity' : number,
+  'reorderLevel' : number,
+}
 export type Shift = { 'morning' : null } |
   { 'night' : null } |
   { 'afternoon' : null };
@@ -105,6 +138,16 @@ export interface Shop {
   'phone' : string,
   'location' : string,
 }
+export interface StoreInfo {
+  'ownerName' : string,
+  'email' : string,
+  'licenseNo' : string,
+  'gstin' : string,
+  'address' : string,
+  'storeName' : string,
+  'mapUrl' : string,
+  'phone' : string,
+}
 export interface UserProfile {
   'name' : string,
   'role' : string,
@@ -116,35 +159,47 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addCustomer' : ActorMethod<[Customer], bigint>,
+  'addDealer' : ActorMethod<[Dealer], undefined>,
   'addDelivery' : ActorMethod<[Delivery], bigint>,
+  'addDocument' : ActorMethod<[Document], undefined>,
   'addInventoryItem' : ActorMethod<[InventoryItem], bigint>,
   'addKhataEntry' : ActorMethod<[KhataEntry], bigint>,
   'addProductionBatch' : ActorMethod<[ProductBatch], bigint>,
+  'addRawMaterial' : ActorMethod<[RawMaterial], undefined>,
   'addShop' : ActorMethod<[Shop], bigint>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createInvoice' : ActorMethod<[Invoice], bigint>,
   'deleteBatch' : ActorMethod<[bigint], undefined>,
   'deleteCustomer' : ActorMethod<[bigint], undefined>,
+  'deleteDealer' : ActorMethod<[string], undefined>,
   'deleteDelivery' : ActorMethod<[bigint], undefined>,
+  'deleteDocument' : ActorMethod<[string], undefined>,
   'deleteInventoryItem' : ActorMethod<[bigint], undefined>,
   'deleteInvoice' : ActorMethod<[bigint], undefined>,
   'deleteKhataEntry' : ActorMethod<[bigint], undefined>,
+  'deleteRawMaterial' : ActorMethod<[string], undefined>,
   'deleteShop' : ActorMethod<[bigint], undefined>,
   'getAllActivityLogs' : ActorMethod<[], Array<ActivityLog>>,
   'getAllBatches' : ActorMethod<[], Array<ProductBatch>>,
   'getAllCustomers' : ActorMethod<[], Array<Customer>>,
+  'getAllDealers' : ActorMethod<[], Array<Dealer>>,
   'getAllDeliveries' : ActorMethod<[], Array<Delivery>>,
+  'getAllDocuments' : ActorMethod<[], Array<Document>>,
   'getAllInventoryItems' : ActorMethod<[], Array<InventoryItem>>,
   'getAllInvoices' : ActorMethod<[], Array<Invoice>>,
   'getAllKhataEntries' : ActorMethod<[], Array<KhataEntry>>,
+  'getAllRawMaterials' : ActorMethod<[], Array<RawMaterial>>,
   'getAllShops' : ActorMethod<[], Array<Shop>>,
   'getBatch' : ActorMethod<[bigint], [] | [ProductBatch]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getChatMessages' : ActorMethod<[string], Array<ChatMessage>>,
   'getCustomer' : ActorMethod<[bigint], [] | [Customer]>,
+  'getDealer' : ActorMethod<[string], [] | [Dealer]>,
   'getDeliveriesByCustomer' : ActorMethod<[bigint], Array<Delivery>>,
   'getDeliveriesByDateRange' : ActorMethod<[bigint, bigint], Array<Delivery>>,
   'getDelivery' : ActorMethod<[bigint], [] | [Delivery]>,
+  'getDocument' : ActorMethod<[string], [] | [Document]>,
   'getInventoryItem' : ActorMethod<[bigint], [] | [InventoryItem]>,
   'getInvoice' : ActorMethod<[bigint], [] | [Invoice]>,
   'getInvoicesByCustomer' : ActorMethod<[bigint], Array<Invoice>>,
@@ -156,17 +211,25 @@ export interface _SERVICE {
     [bigint, bigint],
     Array<ProductBatch>
   >,
+  'getRawMaterial' : ActorMethod<[string], [] | [RawMaterial]>,
+  'getRecentChatMessages' : ActorMethod<[string, bigint], Array<ChatMessage>>,
   'getShop' : ActorMethod<[bigint], [] | [Shop]>,
   'getShopBalance' : ActorMethod<[bigint], number>,
+  'getStoreInfo' : ActorMethod<[], StoreInfo>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'sendChatMessage' : ActorMethod<[string, string, string], bigint>,
   'updateBatch' : ActorMethod<[bigint, ProductBatch], undefined>,
   'updateCustomer' : ActorMethod<[bigint, Customer], undefined>,
+  'updateDealer' : ActorMethod<[string, Dealer], undefined>,
   'updateDelivery' : ActorMethod<[bigint, Delivery], undefined>,
+  'updateDocument' : ActorMethod<[string, Document], undefined>,
   'updateInventoryItem' : ActorMethod<[bigint, InventoryItem], undefined>,
   'updateInvoice' : ActorMethod<[bigint, Invoice], undefined>,
+  'updateRawMaterial' : ActorMethod<[string, RawMaterial], undefined>,
   'updateShop' : ActorMethod<[bigint, Shop], undefined>,
+  'updateStoreInfo' : ActorMethod<[StoreInfo], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

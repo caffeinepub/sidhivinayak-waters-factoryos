@@ -5,12 +5,14 @@ import Time "mo:core/Time";
 import Nat "mo:core/Nat";
 import List "mo:core/List";
 import Runtime "mo:core/Runtime";
-import Migration "migration";
+import Array "mo:core/Array";
+
+
 import Principal "mo:core/Principal";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 
-(with migration = Migration.run)
+
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -145,6 +147,54 @@ actor {
     details : Text;
   };
 
+  public type ChatMessage = {
+    id : Nat;
+    sender : Principal;
+    senderName : Text;
+    content : Text;
+    timestamp : Int;
+    channel : Text;
+  };
+
+  public type RawMaterial = {
+    id : Text;
+    name : Text;
+    quantity : Float;
+    unit : Text;
+    status : Text; // "Available" | "Low" | "Out of Stock"
+    reorderLevel : Float;
+    notes : Text;
+  };
+
+  public type Dealer = {
+    id : Text;
+    name : Text;
+    company : Text;
+    phone : Text;
+    material : Text;
+    email : Text;
+    notes : Text;
+  };
+
+  public type Document = {
+    id : Text;
+    title : Text;
+    content : Text;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  public type StoreInfo = {
+    storeName : Text;
+    ownerName : Text;
+    address : Text;
+    phone : Text;
+    email : Text;
+    gstin : Text;
+    licenseNo : Text;
+    mapUrl : Text;
+  };
+
   var nextCustomerId = 1;
   var nextDeliveryId = 1;
   var nextInvoiceId = 1;
@@ -153,6 +203,7 @@ actor {
   var nextShopId = 1;
   var nextKhataEntryId = 1;
   var nextActivityLogId = 1;
+  var nextChatMessageId = 1;
 
   let customers = Map.empty<Nat, Customer>();
   let deliveries = Map.empty<Nat, Delivery>();
@@ -163,6 +214,152 @@ actor {
   let khataEntries = Map.empty<Nat, KhataEntry>();
   let activityLogs = Map.empty<Nat, ActivityLog>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let chatMessages = Map.empty<Nat, ChatMessage>();
+
+  let rawMaterialMap = Map.empty<Text, RawMaterial>();
+  let dealerMap = Map.empty<Text, Dealer>();
+  let documentMap = Map.empty<Text, Document>();
+
+  var storeInfo : StoreInfo = {
+    storeName = "Sidhivinayak Waters";
+    ownerName = "Jayant";
+    address = "Pune, India";
+    phone = "1234567890";
+    email = "info@sidhivinayakwaters.com";
+    gstin = "GSTIN123";
+    licenseNo = "LIC123";
+    mapUrl = "https://maps.google.com/?q=pune";
+  };
+
+  //--------------- Raw Material Management ----------------
+
+  public shared ({ caller }) func addRawMaterial(material : RawMaterial) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authorized users can add raw materials!");
+    };
+    rawMaterialMap.add(material.id, material);
+  };
+
+  public shared ({ caller }) func updateRawMaterial(id : Text, material : RawMaterial) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authorized users can update raw materials!");
+    };
+    if (not rawMaterialMap.containsKey(id)) { Runtime.trap("Raw material not found!") };
+    rawMaterialMap.add(id, material);
+  };
+
+  public shared ({ caller }) func deleteRawMaterial(id : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can delete raw materials!");
+    };
+    rawMaterialMap.remove(id);
+  };
+
+  public query ({ caller }) func getRawMaterial(id : Text) : async ?RawMaterial {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view raw materials!");
+    };
+    rawMaterialMap.get(id);
+  };
+
+  public query ({ caller }) func getAllRawMaterials() : async [RawMaterial] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view raw materials!");
+    };
+    rawMaterialMap.values().toArray();
+  };
+
+  //--------------- Dealer Management ----------------
+
+  public shared ({ caller }) func addDealer(dealer : Dealer) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authorized users can add dealers!");
+    };
+    dealerMap.add(dealer.id, dealer);
+  };
+
+  public shared ({ caller }) func updateDealer(id : Text, dealer : Dealer) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authorized users can update dealers!");
+    };
+    if (not dealerMap.containsKey(id)) { Runtime.trap("Dealer not found!") };
+    dealerMap.add(id, dealer);
+  };
+
+  public shared ({ caller }) func deleteDealer(id : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can delete dealers!");
+    };
+    dealerMap.remove(id);
+  };
+
+  public query ({ caller }) func getDealer(id : Text) : async ?Dealer {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view dealers!");
+    };
+    dealerMap.get(id);
+  };
+
+  public query ({ caller }) func getAllDealers() : async [Dealer] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view dealers!");
+    };
+    dealerMap.values().toArray();
+  };
+
+  //--------------- Document Management ----------------
+
+  public shared ({ caller }) func addDocument(document : Document) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authorized users can add documents!");
+    };
+    documentMap.add(document.id, document);
+  };
+
+  public shared ({ caller }) func updateDocument(id : Text, document : Document) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authorized users can update documents!");
+    };
+    if (not documentMap.containsKey(id)) { Runtime.trap("Document not found!") };
+    documentMap.add(id, document);
+  };
+
+  public shared ({ caller }) func deleteDocument(id : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can delete documents!");
+    };
+    documentMap.remove(id);
+  };
+
+  public query ({ caller }) func getDocument(id : Text) : async ?Document {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view documents!");
+    };
+    documentMap.get(id);
+  };
+
+  public query ({ caller }) func getAllDocuments() : async [Document] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view documents!");
+    };
+    documentMap.values().toArray();
+  };
+
+  //--------------- Store Info Management ----------------
+
+  public query ({ caller }) func getStoreInfo() : async StoreInfo {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Can only view store info!");
+    };
+    storeInfo;
+  };
+
+  public shared ({ caller }) func updateStoreInfo(info : StoreInfo) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can update store info!");
+    };
+    storeInfo := info;
+  };
 
   //--------------- User Profile Management ----------------
 
@@ -506,6 +703,43 @@ actor {
       Runtime.trap("Unauthorized: Only admins can delete production batches");
     };
     batches.remove(id);
+  };
+
+  //--------------- Chat Messages ----------------
+
+  public shared ({ caller }) func sendChatMessage(channel : Text, content : Text, senderName : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can send messages");
+    };
+    let id = nextChatMessageId;
+    nextChatMessageId += 1;
+    let msg : ChatMessage = {
+      id;
+      sender = caller;
+      senderName;
+      content;
+      timestamp = Time.now();
+      channel;
+    };
+    chatMessages.add(id, msg);
+    id;
+  };
+
+  public query ({ caller }) func getChatMessages(channel : Text) : async [ChatMessage] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can read messages");
+    };
+    chatMessages.values().filter(func(m) { m.channel == channel }).toArray();
+  };
+
+  public query ({ caller }) func getRecentChatMessages(channel : Text, limit : Nat) : async [ChatMessage] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can read messages");
+    };
+    let filtered = chatMessages.values().filter(func(m) { m.channel == channel }).toArray();
+    let total = filtered.size();
+    if (total <= limit) { return filtered };
+    Array.tabulate<ChatMessage>(limit, func(i) { filtered[total - limit + i] });
   };
 
   //--------------- Activity Logging ----------------
