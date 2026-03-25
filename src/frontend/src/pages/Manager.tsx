@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -290,6 +291,46 @@ function RawMaterialsTab() {
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [form, setForm] = useState(blankMaterial());
   const [saving, setSaving] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkProgress, setBulkProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
+  const handleBulkImport = async () => {
+    const lines = bulkText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!lines.length || !actor) return;
+    setBulkProgress({ current: 0, total: lines.length });
+    let saved = 0;
+    for (const line of lines) {
+      const parts = line.split(",").map((p) => p.trim());
+      const material: RawMaterial = {
+        id: crypto.randomUUID(),
+        name: parts[0] || "",
+        quantity: Number(parts[1]) || 0,
+        unit: parts[2] || "pcs",
+        status: parts[3] || "available",
+        reorderLevel: Number(parts[4]) || 0,
+        notes: parts[5] || "",
+      };
+      try {
+        await actor.addRawMaterial(material);
+        saved++;
+      } catch {
+        /* skip */
+      }
+      setBulkProgress({ current: saved, total: lines.length });
+    }
+    qc.invalidateQueries({ queryKey: ["rawMaterials"] });
+    toast.success(`Saved ${saved} material${saved !== 1 ? "s" : ""}!`);
+    setBulkOpen(false);
+    setBulkText("");
+    setBulkProgress(null);
+  };
 
   const openAdd = () => {
     setEditing(null);
@@ -316,7 +357,10 @@ function RawMaterialsTab() {
       if (editing) {
         await actor.updateRawMaterial(editing.id, form as RawMaterial);
       } else {
-        await actor.addRawMaterial({ id: "", ...form } as RawMaterial);
+        await actor.addRawMaterial({
+          id: crypto.randomUUID(),
+          ...form,
+        } as RawMaterial);
       }
       qc.invalidateQueries({ queryKey: ["rawMaterials"] });
       toast.success(editing ? "Material updated!" : "Material added!");
@@ -345,14 +389,25 @@ function RawMaterialsTab() {
         <p className="text-sm text-muted-custom">
           {materials.length} material{materials.length !== 1 ? "s" : ""} tracked
         </p>
-        <Button
-          data-ocid="rawmaterial.add_button"
-          size="sm"
-          onClick={openAdd}
-          style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
-        >
-          <Plus className="w-4 h-4 mr-1" /> Add Material
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            data-ocid="rawmaterial.bulk_import_button"
+            size="sm"
+            variant="outline"
+            onClick={() => setBulkOpen(true)}
+            className="border-border text-muted-custom"
+          >
+            📥 Bulk Import
+          </Button>
+          <Button
+            data-ocid="rawmaterial.add_button"
+            size="sm"
+            onClick={openAdd}
+            style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+          >
+            <Plus className="w-4 h-4 mr-1" /> Add Material
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -551,6 +606,60 @@ function RawMaterialsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent
+          style={{
+            background: "oklch(0.13 0.015 240)",
+            border: "1px solid oklch(0.21 0.02 240)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              Bulk Import Materials
+            </DialogTitle>
+            <DialogDescription className="text-muted-custom text-xs">
+              One material per line: Name, Quantity, Unit, Status, ReorderLevel,
+              Notes
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+            placeholder={
+              "Water Bottles, 500, pcs, available, 50, 500ml\nBottle Caps, 2000, pcs, available, 200\nPackaging Tape, 10, roll, low"
+            }
+            className="bg-transparent border-border text-foreground resize-none font-mono text-xs"
+            rows={8}
+          />
+          {bulkProgress && (
+            <p className="text-xs text-neon text-center">
+              Saving {bulkProgress.current} / {bulkProgress.total}...
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkOpen(false)}
+              className="border-border text-muted-custom"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkImport}
+              disabled={!!bulkProgress || !bulkText.trim()}
+              style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+            >
+              {bulkProgress ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : null}
+              Import {bulkText.split("\n").filter((l) => l.trim()).length || ""}{" "}
+              Materials
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -568,6 +677,26 @@ function DealersTab() {
   const [editing, setEditing] = useState<Dealer | null>(null);
   const [form, setForm] = useState(blankDealer());
   const [saving, setSaving] = useState(false);
+
+  // Search
+  const [search, setSearch] = useState("");
+
+  // Bulk import
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkProgress, setBulkProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
+  const filteredDealers = dealers.filter((d) => {
+    const q = search.toLowerCase();
+    return (
+      d.name.toLowerCase().includes(q) ||
+      d.company.toLowerCase().includes(q) ||
+      d.phone.toLowerCase().includes(q)
+    );
+  });
 
   const openAdd = () => {
     setEditing(null);
@@ -594,13 +723,15 @@ function DealersTab() {
       if (editing) {
         await actor.updateDealer(editing.id, form as Dealer);
       } else {
-        await actor.addDealer({ id: "", ...form } as Dealer);
+        await actor.addDealer({ id: crypto.randomUUID(), ...form } as Dealer);
       }
       qc.invalidateQueries({ queryKey: ["dealers"] });
       toast.success(editing ? "Dealer updated!" : "Dealer added!");
       setOpen(false);
-    } catch {
-      toast.error("Failed to save dealer");
+    } catch (e) {
+      toast.error(
+        `Failed to save dealer: ${e instanceof Error ? e.message : String(e)}`,
+      );
     } finally {
       setSaving(false);
     }
@@ -617,21 +748,83 @@ function DealersTab() {
     }
   };
 
+  const bulkLineCount = bulkText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean).length;
+
+  const handleBulkImport = async () => {
+    const lines = bulkText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!lines.length || !actor) return;
+    setBulkProgress({ current: 0, total: lines.length });
+    let saved = 0;
+    for (const line of lines) {
+      const parts = line.split(",").map((p) => p.trim());
+      const dealer: Dealer = {
+        id: crypto.randomUUID(),
+        name: parts[0] || "",
+        phone: parts[1] || "",
+        company: parts[2] || "",
+        material: parts[3] || "",
+        email: parts[4] || "",
+        notes: parts[5] || "",
+      };
+      try {
+        await actor.addDealer(dealer);
+        saved++;
+      } catch {
+        /* skip failed */
+      }
+      setBulkProgress({ current: saved, total: lines.length });
+    }
+    qc.invalidateQueries({ queryKey: ["dealers"] });
+    toast.success(`Saved ${saved} dealers!`);
+    setBulkOpen(false);
+    setBulkText("");
+    setBulkProgress(null);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-custom">
           {dealers.length} dealer{dealers.length !== 1 ? "s" : ""}
         </p>
-        <Button
-          data-ocid="dealer.add_button"
-          size="sm"
-          onClick={openAdd}
-          style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
-        >
-          <Plus className="w-4 h-4 mr-1" /> Add Dealer
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            data-ocid="dealer.bulk_import_button"
+            size="sm"
+            variant="outline"
+            onClick={() => setBulkOpen(true)}
+            className="border-border text-muted-custom hover:text-foreground"
+          >
+            📥 Bulk Import
+          </Button>
+          <Button
+            data-ocid="dealer.add_button"
+            size="sm"
+            onClick={openAdd}
+            style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+          >
+            <Plus className="w-4 h-4 mr-1" /> Add Dealer
+          </Button>
+        </div>
       </div>
+
+      {/* Search bar */}
+      {dealers.length > 0 && (
+        <Input
+          data-ocid="dealer.search_input"
+          placeholder="Search dealers..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="bg-transparent border-border text-foreground placeholder:text-muted-custom"
+        />
+      )}
 
       {isLoading ? (
         <div
@@ -649,18 +842,25 @@ function DealersTab() {
           <Users className="w-8 h-8 mx-auto mb-3 opacity-40" />
           <p>No dealers added yet</p>
         </div>
+      ) : filteredDealers.length === 0 ? (
+        <div
+          className="rounded-xl p-6 text-center text-muted-custom"
+          style={{ background: "oklch(0.13 0.015 240)" }}
+        >
+          <p className="text-sm">No dealers match &ldquo;{search}&rdquo;</p>
+        </div>
       ) : (
         <div
           className="grid grid-cols-1 sm:grid-cols-2 gap-3"
           data-ocid="dealer.list"
         >
-          {dealers.map((d, idx) => (
+          {filteredDealers.map((d, idx) => (
             <motion.div
               key={d.id}
               data-ocid={`dealer.item.${idx + 1}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.04 }}
+              transition={{ delay: idx * 0.03 }}
               className="rounded-xl p-4 space-y-3"
               style={{
                 background: "oklch(0.13 0.015 240)",
@@ -740,6 +940,7 @@ function DealersTab() {
         </div>
       )}
 
+      {/* Add / Edit single dealer dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           data-ocid="dealer.dialog"
@@ -811,8 +1012,132 @@ function DealersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Import dialog */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent
+          data-ocid="dealer.bulk_import_dialog"
+          className="max-w-lg"
+          style={{
+            background: "oklch(0.13 0.015 240)",
+            border: "1px solid oklch(0.21 0.02 240)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              📥 Bulk Import Dealers
+            </DialogTitle>
+            <DialogDescription className="text-muted-custom text-xs">
+              Paste dealers below, one per line.
+              <br />
+              Format:{" "}
+              <span style={{ color: "oklch(0.75 0.13 188)" }}>
+                Name, Phone, Company, Material, Email, Notes
+              </span>{" "}
+              (all optional except Name)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Textarea
+              data-ocid="dealer.bulk_textarea"
+              rows={12}
+              disabled={!!bulkProgress}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={`Rahul Sharma, +91 98765 43210, Sharma Plastics, PET Bottles
+Suresh Patel, +91 91234 56789, Patel Caps Co, Bottle Caps
+Amit Gupta, +91 88888 77777, Gupta Packaging
+...paste 100+ dealers here`}
+              className="bg-transparent border-border text-foreground resize-none text-xs font-mono placeholder:text-muted-custom/50"
+            />
+
+            {bulkProgress && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-custom">
+                  <span>Saving dealers...</span>
+                  <span style={{ color: "oklch(0.75 0.13 188)" }}>
+                    {bulkProgress.current} / {bulkProgress.total}
+                  </span>
+                </div>
+                <div
+                  className="w-full rounded-full h-1.5 overflow-hidden"
+                  style={{ background: "oklch(0.21 0.02 240)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(bulkProgress.current / bulkProgress.total) * 100}%`,
+                      background: "oklch(0.75 0.13 188)",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-2">
+            <Button
+              data-ocid="dealer.bulk_cancel_button"
+              variant="outline"
+              onClick={() => {
+                setBulkOpen(false);
+                setBulkText("");
+                setBulkProgress(null);
+              }}
+              disabled={!!bulkProgress}
+              className="border-border text-muted-custom"
+            >
+              Cancel
+            </Button>
+            <Button
+              data-ocid="dealer.bulk_submit_button"
+              onClick={handleBulkImport}
+              disabled={bulkLineCount === 0 || !!bulkProgress}
+              style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+            >
+              {bulkProgress ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" /> Saving{" "}
+                  {bulkProgress.current}/{bulkProgress.total}...
+                </>
+              ) : (
+                `Import ${bulkLineCount} Dealer${bulkLineCount !== 1 ? "s" : ""}`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+async function compressImage(dataUrl: string, maxKB = 700): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      let { width, height } = img;
+      const MAX_DIM = 1200;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      let quality = 0.8;
+      let result = canvas.toDataURL("image/jpeg", quality);
+      while (result.length > maxKB * 1024 * 1.37 && quality > 0.2) {
+        quality -= 0.1;
+        result = canvas.toDataURL("image/jpeg", quality);
+      }
+      resolve(result);
+    };
+    img.src = dataUrl;
+  });
 }
 
 function DocumentsTab() {
@@ -829,23 +1154,101 @@ function DocumentsTab() {
   const [editing, setEditing] = useState<Document | null>(null);
   const [form, setForm] = useState(blankDoc());
   const [saving, setSaving] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [imgPreview, setImgPreview] = useState<string>("");
+  const [pdfPreview, setPdfPreview] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const openAdd = () => {
+    if (docs.length >= 100) {
+      toast.error("Document limit reached (max 100). Delete some to add more.");
+      return;
+    }
     setEditing(null);
     setForm(blankDoc());
     setImgPreview("");
+    setPdfPreview("");
     setOpen(true);
+  };
+
+  const handleBulkFiles = async (files: FileList, _type: "image" | "pdf") => {
+    if (!actor) return;
+    const remaining = 100 - docs.length;
+    if (remaining <= 0) {
+      toast.error("Document limit reached (max 100).");
+      return;
+    }
+    const toProcess = Array.from(files).slice(0, remaining);
+    if (files.length > remaining) {
+      toast.error(
+        `Only ${remaining} slots left. Adding first ${remaining} files.`,
+      );
+    }
+    setBulkSaving(true);
+    try {
+      await Promise.all(
+        toProcess.map(
+          (file) =>
+            new Promise<void>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = async (ev) => {
+                try {
+                  let rawContent = ev.target?.result as string;
+                  if (rawContent.startsWith("data:image/")) {
+                    rawContent = await compressImage(rawContent);
+                  }
+                  if (rawContent.length > 1_800_000) {
+                    reject(
+                      new Error(
+                        `File "${file.name}" is too large (max ~1.3MB)`,
+                      ),
+                    );
+                    return;
+                  }
+                  await actor.addDocument({
+                    id: crypto.randomUUID(),
+                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    content: rawContent,
+                    createdAt: BigInt(Date.now()) * BigInt(1_000_000),
+                    updatedAt: BigInt(Date.now()) * BigInt(1_000_000),
+                  } as Document);
+                  resolve();
+                } catch (e) {
+                  reject(e);
+                }
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            }),
+        ),
+      );
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success(
+        `${toProcess.length} document${toProcess.length !== 1 ? "s" : ""} added!`,
+      );
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to add some documents";
+      toast.error(msg);
+    } finally {
+      setBulkSaving(false);
+    }
   };
   const openEdit = (d: Document) => {
     setEditing(d);
     if (d.content.startsWith("data:image/")) {
       setImgPreview(d.content);
+      setPdfPreview("");
+      setForm({ title: d.title, content: "" });
+    } else if (d.content.startsWith("data:application/pdf")) {
+      setPdfPreview(d.content);
+      setImgPreview("");
       setForm({ title: d.title, content: "" });
     } else {
       setImgPreview("");
+      setPdfPreview("");
       setForm({ title: d.title, content: d.content });
     }
     setOpen(true);
@@ -863,7 +1266,15 @@ function DocumentsTab() {
     if (!actor) return;
     setSaving(true);
     try {
-      const saveContent = imgPreview || form.content;
+      let saveContent = imgPreview || pdfPreview || form.content;
+      if (saveContent.startsWith("data:image/")) {
+        saveContent = await compressImage(saveContent);
+      }
+      if (saveContent.length > 1_800_000) {
+        toast.error("File is too large to save. Please use a smaller image.");
+        setSaving(false);
+        return;
+      }
       if (editing) {
         await actor.updateDocument(editing.id, {
           ...editing,
@@ -872,7 +1283,7 @@ function DocumentsTab() {
         } as Document);
       } else {
         await actor.addDocument({
-          id: "",
+          id: crypto.randomUUID(),
           ...form,
           content: saveContent,
           createdAt: BigInt(Date.now()) * BigInt(1_000_000),
@@ -904,15 +1315,32 @@ function DocumentsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-custom">
-          {docs.length} document{docs.length !== 1 ? "s" : ""}
+          {docs.length}/100 document{docs.length !== 1 ? "s" : ""}
+          {docs.length >= 90 && (
+            <span className="ml-1 text-yellow-400 text-xs">
+              ({100 - docs.length} left)
+            </span>
+          )}
         </p>
         <Button
           data-ocid="document.add_button"
           size="sm"
           onClick={openAdd}
-          style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+          disabled={docs.length >= 100 || bulkSaving}
+          style={{
+            background:
+              docs.length >= 100
+                ? "oklch(0.30 0.02 240)"
+                : "oklch(0.75 0.13 188)",
+            color: docs.length >= 100 ? "#666" : "#000",
+          }}
         >
-          <Plus className="w-4 h-4 mr-1" /> Add Document
+          {bulkSaving ? (
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4 mr-1" />
+          )}
+          {bulkSaving ? "Uploading..." : "Add Document"}
         </Button>
       </div>
 
@@ -959,6 +1387,8 @@ function DocumentsTab() {
                 >
                   {d.content.startsWith("data:image/") ? (
                     <Image className="w-4 h-4 text-neon flex-shrink-0" />
+                  ) : d.content.startsWith("data:application/pdf") ? (
+                    <span className="text-base flex-shrink-0">📄</span>
                   ) : (
                     <FileText className="w-4 h-4 text-neon flex-shrink-0" />
                   )}
@@ -1009,6 +1439,30 @@ function DocumentsTab() {
                         className="w-full rounded-xl mt-3 max-h-64 object-contain"
                         alt={d.title}
                       />
+                    ) : d.content.startsWith("data:application/pdf") ? (
+                      <div className="mt-3 flex flex-col gap-2">
+                        <p className="text-xs text-tertiary">PDF Document</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const w = window.open();
+                            if (w) {
+                              w.document.write(
+                                `<iframe src="${d.content}" width="100%" height="100%" style="border:none;"></iframe>`,
+                              );
+                              w.document.close();
+                            }
+                          }}
+                          className="text-sm font-semibold py-2 rounded-xl"
+                          style={{
+                            background: "oklch(0.20 0.02 240)",
+                            color: "oklch(0.75 0.13 188)",
+                            border: "1px solid oklch(0.75 0.13 188)",
+                          }}
+                        >
+                          📄 Open PDF
+                        </button>
+                      </div>
                     ) : (
                       <p className="text-sm text-muted-custom mt-3 whitespace-pre-wrap">
                         {d.content || "No content"}
@@ -1059,9 +1513,11 @@ function DocumentsTab() {
                 placeholder="Document content / notes..."
                 className="bg-transparent border-border text-foreground resize-none"
                 rows={6}
-                disabled={!!imgPreview}
+                disabled={!!imgPreview || !!pdfPreview}
                 style={
-                  imgPreview ? { opacity: 0.4, cursor: "not-allowed" } : {}
+                  imgPreview || pdfPreview
+                    ? { opacity: 0.4, cursor: "not-allowed" }
+                    : {}
                 }
               />
             </div>
@@ -1071,30 +1527,80 @@ function DocumentsTab() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  if (files.length > 1) {
+                    handleBulkFiles(files, "image");
+                    setOpen(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    return;
+                  }
+                  const file = files[0];
                   const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    setImgPreview(ev.target?.result as string);
+                  reader.onload = async (ev) => {
+                    let raw = ev.target?.result as string;
+                    raw = await compressImage(raw);
+                    setImgPreview(raw);
+                    setPdfPreview("");
                   };
                   reader.readAsDataURL(file);
                 }}
               />
-              <button
-                type="button"
-                data-ocid="document.upload_button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 rounded-xl text-sm font-semibold"
-                style={{
-                  border: "1px solid oklch(0.75 0.13 188)",
-                  background: "oklch(0.10 0.015 240)",
-                  color: "oklch(0.75 0.13 188)",
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  if (files.length > 1) {
+                    handleBulkFiles(files, "pdf");
+                    setOpen(false);
+                    if (pdfInputRef.current) pdfInputRef.current.value = "";
+                    return;
+                  }
+                  const file = files[0];
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setPdfPreview(ev.target?.result as string);
+                    setImgPreview("");
+                  };
+                  reader.readAsDataURL(file);
                 }}
-              >
-                📷 From Gallery
-              </button>
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  data-ocid="document.upload_button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 py-2 rounded-xl text-sm font-semibold"
+                  style={{
+                    border: "1px solid oklch(0.75 0.13 188)",
+                    background: "oklch(0.10 0.015 240)",
+                    color: "oklch(0.75 0.13 188)",
+                  }}
+                >
+                  📷 From Gallery
+                </button>
+                <button
+                  type="button"
+                  data-ocid="document.pdf_upload_button"
+                  onClick={() => pdfInputRef.current?.click()}
+                  className="flex-1 py-2 rounded-xl text-sm font-semibold"
+                  style={{
+                    border: "1px solid oklch(0.65 0.13 30)",
+                    background: "oklch(0.10 0.015 240)",
+                    color: "oklch(0.75 0.15 30)",
+                  }}
+                >
+                  📄 Upload PDF
+                </button>
+              </div>
               {imgPreview && (
                 <div className="relative">
                   <img
@@ -1111,6 +1617,30 @@ function DocumentsTab() {
                     className="absolute top-1 right-1 text-xs bg-black/70 text-red-400 rounded-full px-2 py-0.5"
                   >
                     ✕ Remove
+                  </button>
+                </div>
+              )}
+              {pdfPreview && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                  style={{
+                    background: "oklch(0.16 0.02 240)",
+                    border: "1px solid oklch(0.30 0.05 30)",
+                  }}
+                >
+                  <span className="text-lg">📄</span>
+                  <span className="text-sm text-foreground flex-1">
+                    PDF ready to save
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPdfPreview("");
+                      if (pdfInputRef.current) pdfInputRef.current.value = "";
+                    }}
+                    className="text-xs text-red-400"
+                  >
+                    ✕
                   </button>
                 </div>
               )}
