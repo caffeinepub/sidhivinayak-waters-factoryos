@@ -95,10 +95,24 @@ const blankStore = (): StoreInfo => ({
 function StoreTab() {
   const { actor } = useActor();
   const qc = useQueryClient();
-  const { data: info, isLoading } = useQuery({
+  const {
+    data: info,
+    isLoading,
+    isError: storeError,
+    refetch: storeRefetch,
+  } = useQuery({
     queryKey: ["storeInfo"],
-    queryFn: async () => (await actor!.getStoreInfo()) as StoreInfo,
+    queryFn: async () => {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 10000),
+      );
+      return (await Promise.race([
+        actor!.getStoreInfo(),
+        timeout,
+      ])) as StoreInfo;
+    },
     enabled: !!actor,
+    retry: 1,
   });
 
   const [form, setForm] = useState<StoreInfo>(blankStore());
@@ -131,6 +145,26 @@ function StoreTab() {
         className="flex justify-center py-10"
       >
         <Loader2 className="w-5 h-5 text-neon animate-spin" />
+      </div>
+    );
+
+  if (storeError)
+    return (
+      <div
+        data-ocid="store.error_state"
+        className="flex flex-col items-center py-10 gap-3"
+      >
+        <p className="text-sm text-red-400">
+          Failed to load. Backend may be starting up.
+        </p>
+        <button
+          type="button"
+          onClick={() => storeRefetch()}
+          className="px-4 py-2 rounded-lg text-sm font-medium"
+          style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+        >
+          Retry
+        </button>
       </div>
     );
 
@@ -280,11 +314,24 @@ function StoreTab() {
 function RawMaterialsTab() {
   const { actor } = useActor();
   const qc = useQueryClient();
-  const { data: materials = [], isLoading } = useQuery({
+  const {
+    data: materials = [],
+    isLoading,
+    isError: materialsError,
+    refetch: materialsRefetch,
+  } = useQuery({
     queryKey: ["rawMaterials"],
-    queryFn: async () =>
-      (await actor!.getAllRawMaterials()) as unknown as RawMaterial[],
+    queryFn: async () => {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 10000),
+      );
+      return (await Promise.race([
+        actor!.getAllRawMaterials(),
+        timeout,
+      ])) as unknown as RawMaterial[];
+    },
     enabled: !!actor,
+    retry: 1,
   });
 
   const [open, setOpen] = useState(false);
@@ -410,7 +457,24 @@ function RawMaterialsTab() {
         </div>
       </div>
 
-      {isLoading ? (
+      {materialsError ? (
+        <div
+          data-ocid="rawmaterial.error_state"
+          className="flex flex-col items-center py-10 gap-3"
+        >
+          <p className="text-sm text-red-400">
+            Failed to load. Backend may be starting up.
+          </p>
+          <button
+            type="button"
+            onClick={() => materialsRefetch()}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : isLoading ? (
         <div
           data-ocid="rawmaterial.loading_state"
           className="flex justify-center py-8"
@@ -667,10 +731,24 @@ function RawMaterialsTab() {
 function DealersTab() {
   const { actor } = useActor();
   const qc = useQueryClient();
-  const { data: dealers = [], isLoading } = useQuery({
+  const {
+    data: dealers = [],
+    isLoading,
+    isError: dealersError,
+    refetch: dealersRefetch,
+  } = useQuery({
     queryKey: ["dealers"],
-    queryFn: async () => (await actor!.getAllDealers()) as unknown as Dealer[],
+    queryFn: async () => {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 10000),
+      );
+      return (await Promise.race([
+        actor!.getAllDealers(),
+        timeout,
+      ])) as unknown as Dealer[];
+    },
     enabled: !!actor,
+    retry: 1,
   });
 
   const [open, setOpen] = useState(false);
@@ -826,7 +904,24 @@ function DealersTab() {
         />
       )}
 
-      {isLoading ? (
+      {dealersError ? (
+        <div
+          data-ocid="dealer.error_state"
+          className="flex flex-col items-center py-10 gap-3"
+        >
+          <p className="text-sm text-red-400">
+            Failed to load. Backend may be starting up.
+          </p>
+          <button
+            type="button"
+            onClick={() => dealersRefetch()}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : isLoading ? (
         <div
           data-ocid="dealer.loading_state"
           className="flex justify-center py-8"
@@ -1143,11 +1238,24 @@ async function compressImage(dataUrl: string, maxKB = 700): Promise<string> {
 function DocumentsTab() {
   const { actor } = useActor();
   const qc = useQueryClient();
-  const { data: docs = [], isLoading } = useQuery({
+  const {
+    data: docs = [],
+    isLoading,
+    isError: docsError,
+    refetch: docsRefetch,
+  } = useQuery({
     queryKey: ["documents"],
-    queryFn: async () =>
-      (await actor!.getAllDocuments()) as unknown as Document[],
+    queryFn: async () => {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 10000),
+      );
+      return (await Promise.race([
+        actor!.getAllDocuments(),
+        timeout,
+      ])) as unknown as Document[];
+    },
     enabled: !!actor,
+    retry: 1,
   });
 
   const [open, setOpen] = useState(false);
@@ -1344,7 +1452,24 @@ function DocumentsTab() {
         </Button>
       </div>
 
-      {isLoading ? (
+      {docsError ? (
+        <div
+          data-ocid="document.error_state"
+          className="flex flex-col items-center py-10 gap-3"
+        >
+          <p className="text-sm text-red-400">
+            Failed to load. Backend may be starting up.
+          </p>
+          <button
+            type="button"
+            onClick={() => docsRefetch()}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "oklch(0.75 0.13 188)", color: "#000" }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : isLoading ? (
         <div
           data-ocid="document.loading_state"
           className="flex justify-center py-8"

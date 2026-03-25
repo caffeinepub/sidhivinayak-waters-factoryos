@@ -26,14 +26,10 @@ export function useActor() {
       };
 
       const actor = await createActorWithConfig(actorOptions);
-      // Try to register user role — ignore errors if already registered or token issues
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
       try {
-        const adminToken = getSecretParameter("caffeineAdminToken") || "";
         await actor._initializeAccessControlWithSecret(adminToken);
-      } catch (_e) {
-        // Ignore — user may already be registered or token may be empty
-        // The actor is still valid for operations that only check caller.isAnonymous()
-      }
+      } catch (_e) {}
       return actor;
     },
     // Only refetch when identity changes
