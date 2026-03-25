@@ -4,6 +4,7 @@ import {
   Brain,
   Briefcase,
   ChevronRight,
+  Crown,
   Factory,
   LayoutDashboard,
   MessageCircle,
@@ -16,6 +17,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useOwner } from "../context/OwnerContext";
 
 export type Page =
   | "dashboard"
@@ -31,7 +33,8 @@ export type Page =
   | "khata"
   | "ai-panel"
   | "chat"
-  | "manager";
+  | "manager"
+  | "owner-ai";
 
 interface NavItem {
   id: Page;
@@ -39,6 +42,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   hasChildren?: boolean;
   section?: string;
+  ownerOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -90,6 +94,13 @@ const navItems: NavItem[] = [
     section: "intel",
   },
   { id: "settings", label: "Settings", icon: Settings, section: "intel" },
+  {
+    id: "owner-ai",
+    label: "Owner AI",
+    icon: Crown,
+    section: "owner",
+    ownerOnly: true,
+  },
 ];
 
 const sections: { key: string; label: string }[] = [
@@ -99,6 +110,7 @@ const sections: { key: string; label: string }[] = [
   { key: "management", label: "Management" },
   { key: "comm", label: "Communication" },
   { key: "intel", label: "Intelligence" },
+  { key: "owner", label: "Owner" },
 ];
 
 interface SidebarProps {
@@ -114,6 +126,12 @@ export default function Sidebar({
   isOpen,
   onToggle,
 }: SidebarProps) {
+  const { config } = useOwner();
+
+  const visibleItems = navItems.filter(
+    (item) => !config.hiddenPages.includes(item.id),
+  );
+
   return (
     <>
       {isOpen && (
@@ -166,17 +184,35 @@ export default function Sidebar({
         </div>
         <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto">
           {sections.map((section) => {
-            const items = navItems.filter((i) => i.section === section.key);
+            const items = visibleItems.filter((i) => i.section === section.key);
+            if (items.length === 0) return null;
             return (
               <div key={section.key}>
                 {section.label && (
-                  <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest px-3 pt-4 pb-1.5">
-                    {section.label}
+                  <p
+                    className="text-[9px] font-bold uppercase tracking-widest px-3 pt-4 pb-1.5"
+                    style={{
+                      color:
+                        section.key === "owner"
+                          ? "oklch(0.78 0.15 85 / 0.7)"
+                          : undefined,
+                    }}
+                  >
+                    {section.key !== "owner" ? (
+                      <span className="text-tertiary">{section.label}</span>
+                    ) : (
+                      <span style={{ color: "oklch(0.78 0.15 85 / 0.7)" }}>
+                        ⚡ {section.label}
+                      </span>
+                    )}
                   </p>
                 )}
                 {items.map((item) => {
                   const isActive = activePage === item.id;
+                  const isOwner = item.ownerOnly;
                   const Icon = item.icon;
+                  const displayLabel =
+                    config.customLabels[item.id] || item.label;
                   return (
                     <button
                       type="button"
@@ -185,24 +221,72 @@ export default function Sidebar({
                       onClick={() => onNavigate(item.id)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 group"
                       style={
-                        isActive
+                        isActive && isOwner
                           ? {
-                              background: "oklch(0.75 0.13 188 / 0.12)",
-                              border: "1px solid oklch(0.75 0.13 188 / 0.3)",
-                              boxShadow: "0 0 12px oklch(0.75 0.13 188 / 0.15)",
+                              background: "oklch(0.78 0.15 85 / 0.12)",
+                              border: "1px solid oklch(0.78 0.15 85 / 0.4)",
+                              boxShadow: "0 0 14px oklch(0.78 0.15 85 / 0.2)",
                             }
-                          : { border: "1px solid transparent" }
+                          : isActive
+                            ? {
+                                background: "oklch(0.75 0.13 188 / 0.12)",
+                                border: "1px solid oklch(0.75 0.13 188 / 0.3)",
+                                boxShadow:
+                                  "0 0 12px oklch(0.75 0.13 188 / 0.15)",
+                              }
+                            : { border: "1px solid transparent" }
                       }
                     >
-                      <Icon
-                        className={`w-4 h-4 flex-shrink-0 transition-colors ${isActive ? "text-neon" : "text-tertiary group-hover:text-neon-bright"}`}
-                      />
                       <span
-                        className={`text-sm flex-1 transition-colors ${isActive ? "text-neon font-semibold" : "text-muted-custom font-medium group-hover:text-foreground"}`}
+                        className="flex-shrink-0"
+                        style={{
+                          color: isOwner
+                            ? isActive
+                              ? "oklch(0.78 0.15 85)"
+                              : "oklch(0.78 0.15 85 / 0.7)"
+                            : undefined,
+                        }}
                       >
-                        {item.label}
+                        <Icon
+                          className={
+                            isOwner
+                              ? "w-4 h-4"
+                              : `w-4 h-4 ${isActive ? "text-neon" : "text-tertiary group-hover:text-neon-bright"}`
+                          }
+                        />
                       </span>
-                      {item.hasChildren && (
+                      <span
+                        className={`text-sm flex-1 transition-colors font-medium ${
+                          isOwner
+                            ? ""
+                            : isActive
+                              ? "text-neon font-semibold"
+                              : "text-muted-custom group-hover:text-foreground"
+                        }`}
+                        style={{
+                          color: isOwner
+                            ? isActive
+                              ? "oklch(0.78 0.15 85)"
+                              : "oklch(0.78 0.15 85 / 0.7)"
+                            : undefined,
+                          fontWeight: isOwner ? 700 : undefined,
+                        }}
+                      >
+                        {displayLabel}
+                      </span>
+                      {isOwner && (
+                        <span
+                          className="text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                          style={{
+                            background: "oklch(0.78 0.15 85 / 0.15)",
+                            color: "oklch(0.78 0.15 85)",
+                            border: "1px solid oklch(0.78 0.15 85 / 0.3)",
+                          }}
+                        >
+                          OWNER
+                        </span>
+                      )}
+                      {item.hasChildren && !isOwner && (
                         <ChevronRight
                           className={`w-3 h-3 ${isActive ? "text-neon" : "text-tertiary"}`}
                         />

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import Sidebar, { type Page } from "./components/Sidebar";
+import { OwnerProvider } from "./context/OwnerContext";
 import AIPanel from "./pages/AIPanel";
 import Billing from "./pages/Billing";
 import Chat from "./pages/Chat";
@@ -12,6 +13,7 @@ import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
 import Khata from "./pages/Khata";
 import Manager from "./pages/Manager";
+import OwnerAI from "./pages/OwnerAI";
 import Production from "./pages/Production";
 import QRScanner from "./pages/QRScanner";
 import Reports from "./pages/Reports";
@@ -36,6 +38,7 @@ function pageTitle(page: Page): string {
     "ai-panel": "AI Panel",
     manager: "Manager Panel",
     chat: "Team Chat",
+    "owner-ai": "Owner AI",
   };
   return titles[page];
 }
@@ -79,6 +82,8 @@ function AppContent() {
         return <Chat />;
       case "manager":
         return <Manager />;
+      case "owner-ai":
+        return <OwnerAI />;
     }
   };
 
@@ -146,7 +151,9 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <OwnerProvider>
+        <AppContent />
+      </OwnerProvider>
     </QueryClientProvider>
   );
 }

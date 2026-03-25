@@ -1,41 +1,30 @@
 # Sidhivinayak Waters FactoryOS
 
 ## Current State
-A dark-theme factory control system with: Dashboard, Customers, Production, Inventory, Delivery, Billing, Reports, Settings. Backend has Customer, ProductBatch, Delivery, Invoice, InventoryItem, UserProfile models. Authorization component is installed.
-
-Billing issue: The billing page creates invoices but has no proper bill format with line items, no auto-calculation, and no print/view bill modal. Also the `actor` is null for unauthenticated users causing silent failures.
+The app has 14 pages including an AI Panel with 5 AI agents (Manager, Analyst, CA, Legal, Operations) that auto-respond. Navigation is via Sidebar. There is no Owner-only section; all pages are accessible to anyone.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **QR Code generation** in Production: after creating a batch, show a printable QR code with format: `{company, batch, box, mfg, exp, qty}`. Use `qrcode` npm library.
-- **QR Scanner page**: full-screen camera with scanning line animation, shows scanned QR data popup (company, batch, box, mfg, exp, qty)
-- **Shops page**: add/edit/delete shops with name, phone, location/address, contactPerson. View delivery history per shop.
-- **Khata page** (ledger): credit/debit entries per shop, outstanding balance, date/description. Like a simple ledger.
-- **AI Command Center page**: Jarvis-style mock panel with Alerts, Insights, Suggestions sections. Shows computed insights from real backend data (low stock, pending deliveries, unpaid invoices, production stats).
-- Backend: Shop model (id, name, phone, location, address, contactPerson, type: retail/wholesale/hotel)
-- Backend: KhataEntry model (id, shopId, shopName, entryType: credit/debit, amount, description, date)
-- Sidebar: add scanner, shops, khata, ai-panel pages
+- New page: `OwnerAI.tsx` — Owner-Only AI Command Center with a PIN lock (owner sets a PIN on first access, stored in localStorage). Once unlocked, the Owner gets:
+  1. **RANA JI AI** — A supreme AI chat interface with ultra-powerful persona (atomic to cosmic level thinking). Responses are deeply analytical, multi-dimensional, and reference both micro and macro perspectives. Branded as "⚡ Created by Rana Ji". Has typewriter effect, neural pulse animations, confidence score bars, cosmic background particle effects.
+  2. **App Customizer** — Owner can type commands to change the live app: rename nav labels, change accent color (neon color tokens), hide/show pages from sidebar, set a custom dashboard greeting, set a daily "Owner Directive" that shows as a banner. All changes persist via localStorage and apply instantly across the app via a React Context.
+  3. **Owner Directives Board** — List of saved directives/notes that show as glowing banners on the Dashboard.
+  4. **Power Stats** — Shows AI power level (cosmic scale), interaction count, XP, uptime.
+- New context: `OwnerContext.tsx` — stores app customization state (accent color, hidden pages, custom labels, owner directives), reads/writes localStorage, provides it to the whole app.
+- New nav item in Sidebar: `owner-ai` labeled "Owner AI" with a crown/infinity icon, in the Intelligence section, with a glowing neon gold color when active.
 
 ### Modify
-- **Billing page**: complete redesign with line-items support (each item has productName, qty, rate, amount auto-calculated), invoice total auto-sum, a "View Bill" button that opens a printable bill modal showing company header, itemized table, total. Fix create bill flow.
-- **Production page**: after creating a batch, show QR code modal with the batch QR data. Add "Show QR" button per batch row.
-- Navigation: add 4 new pages to Sidebar and App routing.
+- `App.tsx`: Add `OwnerAIPage` import and route; wrap app with `OwnerContextProvider`.
+- `Sidebar.tsx`: Add `owner-ai` nav item with special styling (gold/amber glow for owner-only distinction). Use customization context to apply custom labels and hide pages as set by Owner.
+- `Dashboard.tsx`: Show Owner Directives banner if directives exist (read from OwnerContext).
 
 ### Remove
-- Nothing removed
+- Nothing removed.
 
 ## Implementation Plan
-1. Select `qr-code` component
-2. Generate updated Motoko backend with Shop and KhataEntry added
-3. Build frontend:
-   a. Update Sidebar with new nav items (Scanner, Shops, Khata, AI Panel)
-   b. Update App.tsx routing for new pages
-   c. Fix Billing with line items, auto-calc total, printable bill modal
-   d. Update Production with QR code generation modal per batch
-   e. New QRScanner page (camera-based scanning)
-   f. New Shops page with CRUD
-   g. New Khata page with ledger entries per shop
-   h. New AI Command Center page with computed insights
-4. Generate Sidhivinayak Waters logo
-5. Deploy
+1. Create `src/frontend/src/context/OwnerContext.tsx` with customization state.
+2. Create `src/frontend/src/pages/OwnerAI.tsx` — PIN lock screen + AI chat + App Customizer tabs.
+3. Update `App.tsx` to add OwnerContextProvider and owner-ai route.
+4. Update `Sidebar.tsx` to add owner-ai nav item with gold styling, read custom labels/hidden pages from OwnerContext.
+5. Update `Dashboard.tsx` to show Owner Directives banner strip.

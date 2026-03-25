@@ -9,10 +9,12 @@ import {
   Truck,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useOwner } from "../context/OwnerContext";
 import { useActor } from "../hooks/useActor";
 
 export default function Dashboard() {
   const { actor } = useActor();
+  const { config } = useOwner();
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
@@ -96,10 +98,37 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
+      {/* Owner Directives Banner */}
+      {config.directives.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="overflow-x-auto rounded-lg"
+          style={{
+            background: "oklch(0.10 0.012 240)",
+            border: "1px solid oklch(0.78 0.15 85 / 0.4)",
+            boxShadow: "0 0 20px oklch(0.78 0.15 85 / 0.12)",
+          }}
+        >
+          <div className="flex items-center gap-0 whitespace-nowrap py-2 px-3">
+            {config.directives.map((d, i) => (
+              <span
+                key={d.id}
+                className="text-[11px] font-semibold"
+                style={{ color: "oklch(0.78 0.15 85)" }}
+              >
+                {i > 0 && <span className="mx-3 opacity-40">|</span>}⚡ OWNER
+                DIRECTIVE: {d.text}
+              </span>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Welcome, Owner!
+            Welcome, {config.ownerName}!
           </h1>
           <p className="text-xs text-muted-custom mt-0.5 flex items-center gap-1">
             <Clock className="w-3 h-3" /> {dateStr} · {timeStr}

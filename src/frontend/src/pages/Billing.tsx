@@ -16,8 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { Eye, Plus, Receipt, Trash2, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
@@ -292,37 +290,46 @@ export default function Billing() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
-  const handleDownloadPDF = async (_inv: InvoiceWithId) => {
+  const handleDownloadPDF = (_inv: InvoiceWithId) => {
     const billEl = document.getElementById("bill-print");
     if (!billEl) return;
-    try {
-      toast.info("Generating PDF...");
-      const canvas = await html2canvas(billEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const ratio = canvas.width / canvas.height;
-      let imgW = pageW - 20;
-      let imgH = imgW / ratio;
-      if (imgH > pageH - 20) {
-        imgH = pageH - 20;
-        imgW = imgH * ratio;
-      }
-      pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, 10, imgW, imgH);
-      pdf.save(`Bill-${_inv.customerName}-${_inv.series || _inv.id}.pdf`);
-      toast.success("PDF saved!");
-    } catch {
-      toast.error("PDF generation failed");
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Please allow popups to save PDF");
+      return;
     }
+
+    const billHTML = billEl.innerHTML;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Bill - ${_inv.customerName}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; background: white; color: #000; padding: 20px; }
+          @media print {
+            body { padding: 10px; }
+            @page { margin: 10mm; size: A4; }
+          }
+        </style>
+      </head>
+      <body>
+        ${billHTML}
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 300);
+          };
+        <\/script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    toast.success("Opening PDF view — tap Share > Save as PDF");
   };
 
   const totalRevenue = invoices.reduce(
