@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  Image,
   Loader2,
   Mail,
   MapPin,
@@ -34,7 +35,7 @@ import {
   Users,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dealer, Document, RawMaterial, StoreInfo } from "../backend";
 import { useActor } from "../hooks/useActor";
@@ -829,15 +830,24 @@ function DocumentsTab() {
   const [form, setForm] = useState(blankDoc());
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [imgPreview, setImgPreview] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const openAdd = () => {
     setEditing(null);
     setForm(blankDoc());
+    setImgPreview("");
     setOpen(true);
   };
   const openEdit = (d: Document) => {
     setEditing(d);
-    setForm({ title: d.title, content: d.content });
+    if (d.content.startsWith("data:image/")) {
+      setImgPreview(d.content);
+      setForm({ title: d.title, content: "" });
+    } else {
+      setImgPreview("");
+      setForm({ title: d.title, content: d.content });
+    }
     setOpen(true);
   };
 
@@ -853,15 +863,18 @@ function DocumentsTab() {
     if (!actor) return;
     setSaving(true);
     try {
+      const saveContent = imgPreview || form.content;
       if (editing) {
         await actor.updateDocument(editing.id, {
           ...editing,
           ...form,
+          content: saveContent,
         } as Document);
       } else {
         await actor.addDocument({
           id: "",
           ...form,
+          content: saveContent,
           createdAt: BigInt(Date.now()) * BigInt(1_000_000),
           updatedAt: BigInt(Date.now()) * BigInt(1_000_000),
         } as Document);
@@ -944,7 +957,11 @@ function DocumentsTab() {
                   className="w-full flex items-center gap-3 px-4 py-3 text-left"
                   onClick={() => toggleExpand(d.id)}
                 >
-                  <FileText className="w-4 h-4 text-neon flex-shrink-0" />
+                  {d.content.startsWith("data:image/") ? (
+                    <Image className="w-4 h-4 text-neon flex-shrink-0" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-neon flex-shrink-0" />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">
                       {d.title}
@@ -986,9 +1003,17 @@ function DocumentsTab() {
                     className="px-4 pb-4"
                     style={{ borderTop: "1px solid oklch(0.21 0.02 240)" }}
                   >
-                    <p className="text-sm text-muted-custom mt-3 whitespace-pre-wrap">
-                      {d.content || "No content"}
-                    </p>
+                    {d.content.startsWith("data:image/") ? (
+                      <img
+                        src={d.content}
+                        className="w-full rounded-xl mt-3 max-h-64 object-contain"
+                        alt={d.title}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-custom mt-3 whitespace-pre-wrap">
+                        {d.content || "No content"}
+                      </p>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -1034,7 +1059,61 @@ function DocumentsTab() {
                 placeholder="Document content / notes..."
                 className="bg-transparent border-border text-foreground resize-none"
                 rows={6}
+                disabled={!!imgPreview}
+                style={
+                  imgPreview ? { opacity: 0.4, cursor: "not-allowed" } : {}
+                }
               />
+            </div>
+            <p className="text-xs text-tertiary text-center">— or —</p>
+            <div className="space-y-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setImgPreview(ev.target?.result as string);
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              <button
+                type="button"
+                data-ocid="document.upload_button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2 rounded-xl text-sm font-semibold"
+                style={{
+                  border: "1px solid oklch(0.75 0.13 188)",
+                  background: "oklch(0.10 0.015 240)",
+                  color: "oklch(0.75 0.13 188)",
+                }}
+              >
+                📷 From Gallery
+              </button>
+              {imgPreview && (
+                <div className="relative">
+                  <img
+                    src={imgPreview}
+                    alt="Preview"
+                    className="w-full max-h-40 object-contain rounded-xl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImgPreview("");
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="absolute top-1 right-1 text-xs bg-black/70 text-red-400 rounded-full px-2 py-0.5"
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter className="mt-2">
